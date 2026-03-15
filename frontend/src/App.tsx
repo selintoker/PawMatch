@@ -4,10 +4,22 @@ import SearchIcon from './assets/mag.png'
 import { Episode } from './types'
 import Chat from './Chat'
 
+const traits = [
+  "Affectionate With Family", "Good With Young Children", "Good With Other Dogs",
+  "Shedding Level", "Coat Grooming Frequency", "Drooling Level",
+  "Coat Type", "Coat Length", "Playfulness Level", "Energy Level",
+];
+
+const coatTypes = ["Corded", "Curly", "Double", "Hairless", "Rough", "Silky", "Smooth", "Wavy", "Wiry"];
+const coatLengths = ["Short", "Medium", "Long"];
+
+
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [episodes, setEpisodes] = useState<Episode[]>([])
+  const [traitInput, setTraitInput] = useState<any>({})
+  const [writeIn, setWriteIn] = useState<string>('')
 
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then(data => setUseLlm(data.use_llm))
@@ -21,30 +33,110 @@ function App(): JSX.Element {
     setEpisodes(data)
   }
 
+  const toggleTraitValue = (trait: string, value: number | string) => {
+
+    setTraitInput((prev: any) => {
+
+      const current = prev[trait] || []
+
+      if (current.includes(value)) {
+        return { ...prev, [trait]: current.filter((v: any) => v !== value) }
+      }
+
+      return { ...prev, [trait]: [...current, value] }
+
+    })
+  }
+
+
   if (useLlm === null) return <></>
 
   return (
     <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
-      {/* Search bar (always shown) */}
+
+      {/* Title */}
       <div className="top-text">
-        <div className="google-colors">
-          <h1 id="google-4">4</h1>
-          <h1 id="google-3">3</h1>
-          <h1 id="google-0-1">0</h1>
-          <h1 id="google-0-2">0</h1>
-        </div>
-        <div className="input-box" onClick={() => document.getElementById('search-input')?.focus()}>
-          <img src={SearchIcon} alt="search" />
-          <input
-            id="search-input"
-            placeholder="Search for a Keeping up with the Kardashians episode"
-            value={searchTerm}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
-        </div>
+        <h1>PawMatch</h1>
       </div>
 
-      {/* Search results (always shown) */}
+      {/* TRAIT INPUT FORM */}
+      <div className="trait-form">
+
+        {/* Optional Write-In */}
+        <div className="trait-section">
+
+          <p>Additional Traits</p>
+
+          <input
+            type="text"
+            placeholder="ex: playful, loyal, quiet apartment dog"
+            value={writeIn}
+            onChange={(e) => setWriteIn(e.target.value)}
+          />
+
+        </div>
+
+        {traits.map((trait) => (
+  <div key={trait} className="trait-section">
+
+    <p>{trait}</p>
+
+    <div className="trait-options">
+      {[1,2,3,4,5].map((num) => (
+        <label key={num}>
+          <input
+            type="checkbox"
+            onChange={() => toggleTraitValue(trait, num)}
+          />
+          {num}
+        </label>
+      ))}
+    </div>
+
+  </div>
+))}
+
+{/* Coat Type */}
+<div className="trait-section">
+
+  <p>Coat Type</p>
+
+  <div className="trait-options coat-type-options">
+    {coatTypes.map((type) => (
+      <label key={type}>
+        <input
+          type="checkbox"
+          onChange={() => toggleTraitValue("Coat Type", type)}
+        />
+        {type}
+      </label>
+    ))}
+  </div>
+
+</div>
+
+
+{/* Coat Length */}
+<div className="trait-section">
+
+  <p>Coat Length</p>
+
+  <div className="trait-options">
+    {coatLengths.map((length) => (
+      <label key={length}>
+        <input
+          type="checkbox"
+          onChange={() => toggleTraitValue("Coat Length", length)}
+        />
+        {length}
+      </label>
+    ))}
+  </div>
+
+</div>
+
+      </div>
+      {/* EXISTING RESULTS AREA*/}
       <div id="answer-box">
         {episodes.map((episode, index) => (
           <div key={index} className="episode-item">
