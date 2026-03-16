@@ -3,6 +3,7 @@ import './App.css'
 import { Episode } from './types'
 import Chat from './Chat'
 import TitleImg from './pictures/title.png'
+import PawImg from './pictures/paw.png'
 
 const numericTraits = [
   "Affectionate With Family",
@@ -78,6 +79,7 @@ function App(): JSX.Element {
       {/* Title */}
       <div className="top-text">
         <img src={TitleImg} className="title-image" alt="PawMatch" />
+        <img src={PawImg} className="paw-image" alt="Paw Print" />
       </div>
 
       <div className="trait-form">
@@ -86,7 +88,7 @@ function App(): JSX.Element {
           <input
             className="write-in-input"
             type="text"
-            placeholder="ex: playful, loyal, quiet apartment dog"
+            placeholder="ex: playful, loyal, quiet"
             value={writeIn}
             onChange={(e) => setWriteIn(e.target.value)}
           />
