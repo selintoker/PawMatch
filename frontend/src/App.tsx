@@ -3,6 +3,7 @@ import './App.css'
 import SearchIcon from './assets/mag.png'
 import { Episode } from './types'
 import Chat from './Chat'
+import TitleImg from './pictures/title.png'
 
 const traits = [
   "Affectionate With Family", "Good With Young Children", "Good With Other Dogs",
@@ -54,9 +55,11 @@ function App(): JSX.Element {
   return (
     <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
 
+      <div className="dog-border"></div>
+
       {/* Title */}
       <div className="top-text">
-        <h1>PawMatch</h1>
+        <img src={TitleImg} className="title-image" alt="PawMatch" />
       </div>
 
       {/* TRAIT INPUT FORM */}
