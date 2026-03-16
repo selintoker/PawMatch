@@ -2,28 +2,9 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import { Episode } from './types'
 import Chat from './Chat'
+import TraitPanel from './components/TraitPanel'
 import TitleImg from './pictures/title.png'
 import PawImg from './pictures/paw.png'
-
-const numericTraits = [
-  "Affectionate With Family",
-  "Good With Young Children",
-  "Good With Other Dogs",
-  "Shedding Level",
-  "Coat Grooming Frequency",
-  "Drooling Level",
-  "Openness To Strangers",
-  "Playfulness Level",
-  "Watchdog/Protective Nature",
-  "Adaptability Level",
-  "Trainability Level",
-  "Energy Level",
-  "Barking Level",
-  "Mental Stimulation Needs"
-]
-
-const coatTypes = ["Corded", "Curly", "Double", "Hairless", "Rough", "Silky", "Smooth", "Wavy", "Wiry"]
-const coatLengths = ["Short", "Medium", "Long"]
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
@@ -88,72 +69,14 @@ function App(): JSX.Element {
         <img src={PawImg} className="paw-image" alt="Paw Print" />
       </div>
 
-      <div className="trait-form">
-        <div className="trait-section">
-          <p>Additional Traits</p>
-          <input
-            className="write-in-input"
-            type="text"
-            placeholder="ex: playful, loyal, quiet"
-            value={writeIn}
-            onChange={(e) => setWriteIn(e.target.value)}
-          />
-        </div>
-
-        {numericTraits.map((trait) => (
-          <div key={trait} className="trait-section">
-            <p>{trait}</p>
-            <div className="trait-options">
-              {[1, 2, 3, 4, 5].map((num) => (
-                <label key={num}>
-                  <input
-                    type="checkbox"
-                    checked={(traitInput[trait] || []).includes(num)}
-                    onChange={() => toggleTraitValue(trait, num)}
-                  />
-                  {num}
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        <div className="trait-section">
-          <p>Coat Type</p>
-          <div className="trait-options coat-type-options">
-            {coatTypes.map((type) => (
-              <label key={type}>
-                <input
-                  type="checkbox"
-                  checked={(traitInput["Coat Type"] || []).includes(type)}
-                  onChange={() => toggleTraitValue("Coat Type", type)}
-                />
-                {type}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="trait-section">
-          <p>Coat Length</p>
-          <div className="trait-options">
-            {coatLengths.map((length) => (
-              <label key={length}>
-                <input
-                  type="checkbox"
-                  checked={(traitInput["Coat Length"] || []).includes(length)}
-                  onChange={() => toggleTraitValue("Coat Length", length)}
-                />
-                {length}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <button className="submit-button" onClick={handleSubmitPreferences}>
-          Find Matches
-        </button>
-      </div>
+        <TraitPanel
+        traitInput={traitInput}
+        setTraitInput={setTraitInput}
+        toggleTraitValue={toggleTraitValue}
+        writeIn={writeIn}
+        setWriteIn={setWriteIn}
+        handleSubmitPreferences={handleSubmitPreferences}
+      />
 
       <div id="answer-box">
         {selectedTraitEntries.length === 0 && submittedWriteIn.trim() === '' ? (
@@ -180,14 +103,7 @@ function App(): JSX.Element {
             ))}
           </div>
         )}
-
-        {episodes.map((episode, index) => (
-          <div key={index} className="episode-item">
-            <h3 className="episode-title">{episode.title}</h3>
-            <p className="episode-desc">{episode.descr}</p>
-            <p className="episode-rating">IMDB Rating: {episode.imdb_rating}</p>
-          </div>
-        ))}
+        
       </div>
 
       {useLlm && <Chat onSearchTerm={handleSearch} />}
