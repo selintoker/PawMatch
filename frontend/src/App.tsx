@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import { Episode } from './types'
 import Chat from './Chat'
+import TitleImg from './pictures/title.png'
 
 const numericTraits = [
   "Affectionate With Family",
@@ -72,8 +73,11 @@ function App(): JSX.Element {
 
   return (
     <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
+      <div className="dog-border"></div>
+
+      {/* Title */}
       <div className="top-text">
-        <h1>PawMatch</h1>
+        <img src={TitleImg} className="title-image" alt="PawMatch" />
       </div>
 
       <div className="trait-form">
