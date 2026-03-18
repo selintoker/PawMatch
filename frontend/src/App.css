@@ -33,6 +33,25 @@
   margin-bottom: 20px;
 }
 
+.match-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 20px
+}
+
+.match-title-image {
+  height: 50px;
+  width: 500px;
+}
+
+.match-paw-image {
+  height: 40px;
+}
+
+
 /* ── Search bar ────────────────────────────────────────────────────────────── */
 
 .input-box {
@@ -238,8 +257,88 @@ label span,
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.2rem;
   margin-top: 2rem;
+}
+
+.results-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.results-title {
+  margin: 4px 0 6px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #2F6EFF;
+}
+
+.dog-card {
+  background: #E6F0FF;
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dog-card h4 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2F6EFF;
+  margin: 0;
+}
+
+.match-score {
+  align-self: flex-start;
+  background: #2F6EFF;
+  color: white;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.dog-card p {
+  margin: 4px 0;
+  font-size: 0.95rem;
+}
+
+.traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.trait-pill {
+  background: white;
+  color: #2F6EFF;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #d6e4ff;
+}
+
+.dog-temperament {
+  font-size: 0.95rem;
+  color: #333;
+  margin: 2px 0 4px;
+}
+
+.dog-description {
+  margin-top: 6px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #333;
+
+  background: rgba(255,255,255,0.6);
+  padding: 10px 12px;
+  border-radius: 10px;
 }
 
 .episode-item {
@@ -251,7 +350,7 @@ label span,
 
 .episode-title {
   font-size: 1.25rem;
-  color: #1a73e8;
+  color: #2F6EFF;
   margin-bottom: 0.5rem;
   font-family: 'Kanit', sans-serif;
 }
@@ -297,14 +396,14 @@ label span,
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Open Sans', sans-serif;
   font-size: 1rem;
   line-height: 1.6;
 }
 
 .message.user p {
-  font-family: 'Kanit', sans-serif;
-  color: #1a73e8;
+  font-family: 'Open Sans', sans-serif;
+  color: #2F6EFF;
 }
 
 /* ── Loading dots ──────────────────────────────────────────────────────────── */
@@ -437,12 +536,12 @@ label span,
   box-sizing: border-box;
   background-color: #E6F0FF;
 
-  font-family: 'Kanit', sans-serif;
+  font-family: 'Open Sans', sans-serif;
   color: black;
 }
 
 .write-in-input::placeholder {
-  font-family: 'Kanit', sans-serif;
+  font-family: 'Open Sans', sans-serif;
   font-size: 0.95rem;
   color: #6b7a90;
 }
@@ -452,7 +551,7 @@ label span,
   padding: 0.8rem 1.25rem;
   border: none;
   border-radius: 10px;
-  background-color: #1a73e8;
+  background-color: #2F6EFF;
   color: #E6F0FF;
   font-size: 1rem;
   font-weight: 600;
@@ -464,21 +563,24 @@ label span,
 }
 
 .query-preview-card {
-  padding: 1.5rem;
-  background-color: #f8f9fa;
-  border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  background: #E6F0FF;
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 .query-preview-title {
   margin-top: 0;
   margin-bottom: 0.8rem;
-  color: #1a73e8;
-  font-family: 'Kanit', sans-serif;
+  color: #2F6EFF;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
 }
 
 .query-preview-text {
   margin: 0.45rem 0;
-  color: #3c4043;
-  font-family: 'Montserrat', sans-serif;
+  color: black;
+  font-family: 'Open Sans', sans-serif;
 }

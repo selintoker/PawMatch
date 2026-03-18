@@ -7,6 +7,7 @@ import json
 import os
 from flask import send_from_directory, request, jsonify
 from models import db, Episode, Review
+import pandas as pd
 
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = False
@@ -49,6 +50,63 @@ def register_routes(app):
     def episodes_search():
         text = request.args.get("title", "")
         return jsonify(json_search(text))
+    
+    @app.route('/api/match', methods=['POST'])
+    def match_dogs():
+        user_traits = request.json  # dict: {trait: [values]}
+
+        df = pd.read_csv('data/breed_data.csv')
+
+        results = []
+
+        for _, row in df.iterrows():
+            breed_traits = set()
+
+            if pd.notna(row['group']):
+                breed_traits.add(row['group'])
+
+            if pd.notna(row['grooming_frequency_category']):
+                breed_traits.add(row['grooming_frequency_category'])
+
+            if pd.notna(row['shedding_category']):
+                breed_traits.add(row['shedding_category'])
+
+            if pd.notna(row['energy_level_category']):
+                breed_traits.add(row['energy_level_category'])
+
+            if pd.notna(row['trainability_category']):
+                breed_traits.add(row['trainability_category'])
+
+            if pd.notna(row['demeanor_category']):
+                breed_traits.add(row['demeanor_category'])
+
+            user_set = set()
+            for values in user_traits.values():
+                user_set.update(values)
+
+            intersection = len(breed_traits & user_set)
+            union = len(breed_traits | user_set)
+
+            score = intersection / union if union != 0 else 0
+
+            results.append({
+                "breed": row['breed'],
+                "score": round(score, 3),
+                "description": row['description'],
+                "temperament": row['temperament'],
+                "group": row['group'],
+                "energy": row['energy_level_category'],
+                "shedding": row['shedding_category'],
+                "trainability": row['trainability_category'],
+                "demeanor": row['demeanor_category']
+            })
+
+        results = sorted(results, key=lambda x: x['score'], reverse=True)
+
+        filtered = [r for r in results if r['score'] > 0]
+
+        return jsonify(filtered[:10])
+
 
     if USE_LLM:
         from llm_routes import register_chat_route

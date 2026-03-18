@@ -5,6 +5,7 @@ import Chat from './Chat'
 import TraitPanel from './components/TraitPanel'
 import TitleImg from './pictures/title.png'
 import PawImg from './pictures/paw.png'
+import MatchImg from './pictures/match_title.png'
 
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
@@ -14,6 +15,7 @@ function App(): JSX.Element {
   const [writeIn, setWriteIn] = useState<string>('')
   const [submittedQuery, setSubmittedQuery] = useState<Record<string, Array<number | string>>>({})
   const [submittedWriteIn, setSubmittedWriteIn] = useState<string>('')
+  const [matches, setMatches] = useState<any[]>([])
 
   useEffect(() => {
     fetch('/api/config').then(r => r.json()).then(data => setUseLlm(data.use_llm))
@@ -48,10 +50,21 @@ function App(): JSX.Element {
     })
   }
 
-  const handleSubmitPreferences = () => {
-    setSubmittedQuery(traitInput)
-    setSubmittedWriteIn(writeIn)
-  }
+  const handleSubmitPreferences = async () => {
+  setSubmittedQuery(traitInput)
+  setSubmittedWriteIn(writeIn)
+
+  const response = await fetch('/api/match', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(traitInput),
+  })
+
+  const data = await response.json()
+  setMatches(data)
+}
 
   const selectedTraitEntries = Object.entries(submittedQuery).filter(
     ([_, values]) => values.length > 0
@@ -103,9 +116,47 @@ function App(): JSX.Element {
             ))}
           </div>
         )}
-        
-      </div>
 
+        {selectedTraitEntries.length > 0 && matches.length === 0 && (
+        <div className="query-preview-card">
+          <h3 className="query-preview-title">No Matches Found 🐾</h3>
+          <p className="query-preview-text">
+            Try selecting fewer traits or more general options.
+          </p>
+        </div>
+      )}
+
+        {matches.length > 0 && (
+          <div className="results-section">
+            <div className="match-text">
+              <img src={MatchImg} className="match-title-image" alt="Top Dog Matches" />
+              <img src={PawImg} className="match-paw-image" alt="Paw Print" />
+            </div>
+
+            {matches.map((dog, index) => (
+              <div className="dog-card">
+                <h4>{dog.breed}</h4>
+
+                <p className="match-score">Match: {dog.score}</p>
+
+                <div className="traits">
+                  <span className="trait-pill">{dog.group}</span>
+                  <span className="trait-pill">{dog.energy}</span>
+                  <span className="trait-pill">{dog.shedding}</span>
+                  <span className="trait-pill">{dog.trainability}</span>
+                  <span className="trait-pill">{dog.demeanor}</span>
+                </div>
+
+                <p className="dog-temperament">
+                  <strong>{dog.temperament}</strong>
+                </p>
+
+                <p className="dog-description">{dog.description}</p>
+              </div>
+            ))} 
+          </div>  
+        )}
+      </div>
       {useLlm && <Chat onSearchTerm={handleSearch} />}
     </div>
   )
