@@ -9,7 +9,6 @@ Jinja2==3.1.6
 joblib==1.5.3
 MarkupSafe==3.0.3
 numpy==2.2.6
-packaging @ file:///opt/miniconda3/conda-bld/packaging_1761049079158/work
 pandas==2.3.3
 python-dateutil==2.9.0.post0
 pytz==2026.1.post1
