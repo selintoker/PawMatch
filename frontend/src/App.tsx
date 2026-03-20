@@ -158,11 +158,23 @@ function App(): JSX.Element {
               </p>
             )}
 
-            {selectedTraitEntries.map(([trait, values]) => (
-              <p key={trait} className="query-preview-text">
-                <strong>{trait}:</strong> {values.join(', ')}
-              </p>
-            ))}
+            {selectedTraitEntries.map(([trait, values]) => {
+              const formattedValues = values.map((v) => {
+                const val = String(v)
+
+                if (trait === "Height") return `${val} cm`
+                if (trait === "Weight") return `${val} kg`
+                if (trait === "Life Expectancy") return `${val} years`
+
+                return val
+              })
+
+              return (
+                <p key={trait} className="query-preview-text">
+                  <strong>{trait}:</strong> {formattedValues.join(', ')}
+                </p>
+              )
+            })}
           </div>
         )}
 
