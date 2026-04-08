@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-// import { Episode } from './types'
-// import Chat from './Chat'
 import TraitPanel from './components/TraitPanel'
 import TitleImg from './pictures/title.png'
 import PawImg from './pictures/paw.png'
@@ -31,10 +29,9 @@ type DogMatch = {
   max_expectancy: number | null
   avg_expectancy: number | null
 }
+
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
-  // const [searchTerm, setSearchTerm] = useState<string>('')
-  // const [episodes, setEpisodes] = useState<Episode[]>([])
   const [traitInput, setTraitInput] = useState<Record<string, Array<number | string>>>({})
   const [writeIn, setWriteIn] = useState<string>('')
   const [submittedQuery, setSubmittedQuery] = useState<Record<string, Array<number | string>>>({})
@@ -49,22 +46,9 @@ function App(): JSX.Element {
       .then(data => setUseLlm(data.use_llm))
   }, [])
 
-  // const handleSearch = async (value: string): Promise<void> => {
-  //   setSearchTerm(value)
-  //   if (value.trim() === '') {
-  //     setEpisodes([])
-  //     return
-  //   }
-
-  //   const response = await fetch(`/api/episodes?title=${encodeURIComponent(value)}`)
-  //   const data: Episode[] = await response.json()
-  //   setEpisodes(data)
-  // }
-
   const toggleTraitValue = (trait: string, value: number | string) => {
     setTraitInput((prev) => {
       const current = prev[trait] || []
-
       if (current.includes(value)) {
         return {
           ...prev,
@@ -124,142 +108,146 @@ function App(): JSX.Element {
 
   return (
     <div className={`full-body-container ${useLlm ? 'llm-mode' : ''}`}>
-      <div className="dog-border"></div>
-
-      <div className="top-text">
-        <img src={TitleImg} className="title-image" alt="PawMatch" />
-        <img src={PawImg} className="paw-image" alt="Paw Print" />
+      {/* Header */}
+      <div className="site-header">
+        <div className="dog-border" />
+        <div className="top-text">
+          <img src={TitleImg} className="title-image" alt="PawMatch" />
+          <img src={PawImg} className="paw-image" alt="Paw Print" />
+        </div>
       </div>
 
-      <TraitPanel
-        traitInput={traitInput}
-        setTraitInput={setTraitInput}
-        toggleTraitValue={toggleTraitValue}
-        writeIn={writeIn}
-        setWriteIn={setWriteIn}
-        handleSubmitPreferences={handleSubmitPreferences}
-      />
+      {/* Main content */}
+      <div className="main-content">
 
-      <div id="answer-box">
-        {!hasSubmittedInput ? (
-          <div className="query-preview-card">
-            <h3 className="query-preview-title">Current</h3>
-            <p className="query-preview-text">
-              No preferences submitted yet. Select traits and click Find Matches.
-            </p>
-          </div>
-        ) : (
-          <div className="query-preview-card">
-            <h3 className="query-preview-title">Submitted Preferences</h3>
+        {/* Trait selector panel */}
+        <TraitPanel
+          traitInput={traitInput}
+          setTraitInput={setTraitInput}
+          toggleTraitValue={toggleTraitValue}
+          writeIn={writeIn}
+          setWriteIn={setWriteIn}
+          handleSubmitPreferences={handleSubmitPreferences}
+        />
 
-            {submittedWriteIn.trim() !== '' && (
+        {/* Results / status area */}
+        <div id="answer-box">
+
+          {/* Submitted preferences preview */}
+          {!hasSubmittedInput ? (
+            <div className="query-preview-card">
+              <h3 className="query-preview-title">Your preferences</h3>
               <p className="query-preview-text">
-                <strong>Additional Traits:</strong> {submittedWriteIn}
+                No preferences submitted yet — select traits above and click Find Matches.
               </p>
-            )}
-
-            {selectedTraitEntries.map(([trait, values]) => {
-              const formattedValues = values.map((v) => {
-                const val = String(v)
-
-                if (trait === "Height") return `${val} cm`
-                if (trait === "Weight") return `${val} kg`
-                if (trait === "Life Expectancy") return `${val} years`
-
-                return val
-              })
-
-              return (
-                <p key={trait} className="query-preview-text">
-                  <strong>{trait}:</strong> {formattedValues.join(', ')}
-                </p>
-              )
-            })}
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="query-preview-card">
-            <h3 className="query-preview-title">Finding Matches...</h3>
-            <p className="query-preview-text">Please wait while we rank the dogs.</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="query-preview-card">
-            <h3 className="query-preview-title">Error</h3>
-            <p className="query-preview-text">{error}</p>
-          </div>
-        )}
-
-        {!isLoading && hasSubmittedInput && matches.length === 0 && !error && (
-          <div className="query-preview-card">
-            <h3 className="query-preview-title">No Matches Found 🐾</h3>
-            <p className="query-preview-text">
-              Try selecting fewer traits, changing your text input, or using more general options.
-            </p>
-          </div>
-        )}
-
-        {!isLoading && matches.length > 0 && (
-          <div className="results-section">
-            <div className="match-text">
-              <img src={MatchImg} className="match-title-image" alt="Top Dog Matches" />
-              <img src={PawImg} className="match-paw-image" alt="Paw Print" />
             </div>
+          ) : (
+            <div className="query-preview-card">
+              <h3 className="query-preview-title">Submitted preferences</h3>
 
-            {matches.map((dog, index) => (
-              <div className="dog-card" key={`${dog.breed}-${index}`}>
-                <div className="dog-card-layout">
-                  <div className="dog-image-wrap">
-                    <img
-                      src={dog.picture_name ? `/images/${dog.picture_name}` : PawImg}
-                      alt={dog.breed}
-                      className="dog-image"
-                      onError={(e) => {
-                        e.currentTarget.src = PawImg
-                      }}
-                    />
-                  </div>
+              {submittedWriteIn.trim() !== '' && (
+                <p className="query-preview-text">
+                  <strong>Additional notes:</strong> {submittedWriteIn}
+                </p>
+              )}
 
-                  <div className="dog-card-content">
-                    <h4>{dog.breed}</h4>
+              {selectedTraitEntries.map(([trait, values]) => {
+                const formattedValues = values.map((v) => {
+                  const val = String(v)
+                  if (trait === 'Height') return `${val} cm`
+                  if (trait === 'Weight') return `${val} kg`
+                  if (trait === 'Life Expectancy') return `${val} years`
+                  return val
+                })
 
-                    <p className="match-score">Match: {dog.score}</p>
+                return (
+                  <p key={trait} className="query-preview-text">
+                    <strong>{trait}:</strong> {formattedValues.join(', ')}
+                  </p>
+                )
+              })}
+            </div>
+          )}
 
-                    <div className="traits">
-                      <span className="trait-pill">
-                        <strong>Height:</strong> {dog.avg_height != null ? Math.round(dog.avg_height) : "N/A"} cm
-                      </span>
+          {/* Loading */}
+          {isLoading && (
+            <div className="query-preview-card">
+              <h3 className="query-preview-title">Finding matches…</h3>
+              <p className="query-preview-text">Ranking dogs by how well they fit your preferences.</p>
+            </div>
+          )}
 
-                      <span className="trait-pill">
-                        <strong>Weight:</strong> {dog.avg_weight != null ? Math.round(dog.avg_weight) : "N/A"} kg
-                      </span>
+          {/* Error */}
+          {error && (
+            <div className="query-preview-card">
+              <h3 className="query-preview-title">Something went wrong</h3>
+              <p className="query-preview-text">{error}</p>
+            </div>
+          )}
 
-                      <span className="trait-pill">
-                        <strong>Life Expectancy:</strong> {dog.avg_expectancy ?? "N/A"} yrs
-                      </span>
+          {/* No results */}
+          {!isLoading && hasSubmittedInput && matches.length === 0 && !error && (
+            <div className="query-preview-card">
+              <h3 className="query-preview-title">No matches found 🐾</h3>
+              <p className="query-preview-text">
+                Try selecting fewer traits, adjusting your notes, or using broader options.
+              </p>
+            </div>
+          )}
 
-                      <span className="trait-pill">{dog.group}</span>
-                      <span className="trait-pill">{dog.energy}</span>
-                      <span className="trait-pill">{dog.shedding}</span>
-                      <span className="trait-pill">{dog.trainability}</span>
-                      <span className="trait-pill">{dog.demeanor}</span>
+          {/* Dog results */}
+          {!isLoading && matches.length > 0 && (
+            <div className="results-section">
+              <div className="match-text">
+                <img src={MatchImg} className="match-title-image" alt="Top Dog Matches" />
+                <img src={PawImg} className="match-paw-image" alt="Paw" />
+              </div>
+
+              {matches.map((dog, index) => (
+                <div className="dog-card" key={`${dog.breed}-${index}`}>
+                  <div className="dog-card-layout">
+                    <div className="dog-image-wrap">
+                      <img
+                        src={dog.picture_name ? `/images/${dog.picture_name}` : PawImg}
+                        alt={dog.breed}
+                        className="dog-image"
+                        onError={(e) => { e.currentTarget.src = PawImg }}
+                      />
                     </div>
 
-                    <p className="dog-temperament">
-                      <strong>{dog.temperament}</strong>
-                    </p>
+                    <div className="dog-card-content">
+                      <div className="dog-card-header">
+                        <h4>{dog.breed}</h4>
+                        <span className="match-score">Match: {dog.score}</span>
+                      </div>
 
-                    <p className="dog-description">{dog.description}</p>
+                      <div className="traits">
+                        <span className="trait-pill">
+                          <strong>Height</strong> {dog.avg_height != null ? Math.round(dog.avg_height) : 'N/A'} cm
+                        </span>
+                        <span className="trait-pill">
+                          <strong>Weight</strong> {dog.avg_weight != null ? Math.round(dog.avg_weight) : 'N/A'} kg
+                        </span>
+                        <span className="trait-pill">
+                          <strong>Lifespan</strong> {dog.avg_expectancy ?? 'N/A'} yrs
+                        </span>
+                        <span className="trait-pill">{dog.group}</span>
+                        <span className="trait-pill">{dog.energy}</span>
+                        <span className="trait-pill">{dog.shedding}</span>
+                        <span className="trait-pill">{dog.trainability}</span>
+                        <span className="trait-pill">{dog.demeanor}</span>
+                      </div>
+
+                      <p className="dog-temperament">{dog.temperament}</p>
+                      <p className="dog-description">{dog.description}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      {/* {useLlm && <Chat onSearchTerm={handleSearch} />} */}
     </div>
   )
 }
