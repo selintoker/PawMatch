@@ -280,22 +280,28 @@ def register_routes(app):
             matching_traits = get_matching_traits(row, trait_input)
             matching_words = get_text_matches(row, write_in)
 
-            # ---------------- TEXT SCORE (binary 0 or 1) ----------------
-            text_words = set((write_in or "").lower().split())
-            text_words = {w for w in text_words if len(w) > 0}
-
-            text_text = (str(row["description"]) + " " + str(row["temperament"])).lower()
-
-            text_score = 100.0 if any(w in text_text for w in text_words) else 0.0
-
-
-            # ---------------- CATEGORY SCORE ----------------
+            # ---------------- DETECT INPUT MODES ----------------
             selected_traits = {
                 k: v for k, v in trait_input.items() if len(as_list(v)) > 0
             }
 
-            total_categories = len(selected_traits)
+            has_categories = len(selected_traits) > 0
+            has_text = len(write_in) > 0
 
+
+            # ---------------- TEXT SCORE (BOOLEAN) ----------------
+            text_words = set(write_in.lower().split())
+            text_words = {w for w in text_words if len(w) > 0}
+
+            text_text = (str(row["description"]) + " " + str(row["temperament"])).lower()
+
+            text_match = any(w in text_text for w in text_words)
+
+            text_score = 100.0 if text_match else 0.0
+
+
+            # ---------------- CATEGORY SCORE ----------------
+            total_categories = len(selected_traits)
             matched_categories = 0
 
             for trait, values in selected_traits.items():
@@ -308,8 +314,7 @@ def register_routes(app):
                 for v in as_list(values):
                     if str(v).strip().lower() in row_value:
                         matched_categories += 1
-                        break  # only count once per category
-
+                        break
 
             category_score = (
                 100.0
@@ -318,15 +323,23 @@ def register_routes(app):
             )
 
 
-            # ---------------- FINAL SCORE RULES ----------------
-            if text_score == 100 and category_score == 100:
-                final_score = 100
+            # ---------------- FINAL SCORE LOGIC ----------------
 
-            elif text_score == 100 and category_score == 0:
-                final_score = 60
+            # CASE 1: no categories → TEXT ONLY
+            if not has_categories and has_text:
+                final_score = text_score
 
-            else:
+            # CASE 2: no text → CATEGORY ONLY
+            elif has_categories and not has_text:
+                final_score = category_score
+
+            # CASE 3: both → hybrid
+            elif has_categories and has_text:
                 final_score = 0.6 * text_score + 0.4 * category_score
+
+            # CASE 4: fallback (shouldn't happen)
+            else:
+                final_score = 0
 
             results.append({
                 "breed": breed_name,
