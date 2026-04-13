@@ -283,7 +283,7 @@ function App(): JSX.Element {
   }
 
   const currentMatches = activeMethod === 'svd' ? svdMatches : baselineMatches
-  const showMethodToggle = !isLoading && !error && (svdMatches.length > 0 || baselineMatches.length > 0)
+  //const showMethodToggle = !isLoading && !error && (svdMatches.length > 0 || baselineMatches.length > 0)
 
   if (useLlm === null) return <></>
 
