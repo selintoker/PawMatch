@@ -7,10 +7,12 @@ import json
 import os
 import re
 import unicodedata
+import numpy as np
 from flask import send_from_directory, request, jsonify
 from models import db, Episode, Review
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics.pairwise import cosine_similarity
 
 # ── AI toggle ────────────────────────────────────────────────────────────────
@@ -39,8 +41,9 @@ def json_search(query):
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_directory)
+
 DATA_PATH = os.path.join(project_root, 'src', 'data', 'breed_data.csv')
-PICTURE_DATA_PATH = os.path.join(project_root, 'src', 'data', 'breed_pictures.csv')
+PICTURE_PATH = os.path.join(project_root, 'src', 'data', 'breed_pictures.csv')
 
 RANGE_COLUMN_MAP = {
     "Height": "avg_height",
@@ -56,35 +59,6 @@ CATEGORY_COLUMN_MAP = {
     "Trainability": "trainability_category",
     "Demeanor": "demeanor_category",
 }
-
-
-def normalize_breed_name(name):
-    if pd.isna(name):
-        return ""
-
-    text = unicodedata.normalize("NFKD", str(name))
-    text = text.encode("ascii", "ignore").decode("ascii")
-    text = text.lower()
-    text = re.sub(r"[^a-z0-9]+", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-def load_picture_map():
-    if not os.path.exists(PICTURE_DATA_PATH):
-        return {}
-
-    picture_df = pd.read_csv(PICTURE_DATA_PATH)
-    picture_map = {}
-
-    for _, row in picture_df.iterrows():
-        breed = row.get("breed")
-        picture_name = row.get("picture_name")
-
-        if pd.notna(breed) and pd.notna(picture_name):
-            picture_map[normalize_breed_name(breed)] = str(picture_name)
-
-    return picture_map
 
 
 def as_list(value):
@@ -106,41 +80,45 @@ def parse_range(range_str):
 def safe(val):
     return None if pd.isna(val) else val
 
-def get_matching_traits(row, trait_input):
-    matches = []
 
-    for trait, col in CATEGORY_COLUMN_MAP.items():
-        selected_values = as_list(trait_input.get(trait, []))
-        if not selected_values:
-            continue
+def normalize_breed_name(name):
+    if pd.isna(name):
+        return ""
 
-        row_value = "" if pd.isna(row.get(col)) else str(row[col]).lower()
+    name = str(name)
+    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
+    name = name.lower()
+    name = name.replace("&", "and")
+    name = re.sub(r"[^a-z0-9]+", " ", name)
+    return " ".join(name.split())
 
-        for selected in selected_values:
-            selected_clean = str(selected).strip().lower()
-            if selected_clean in row_value:
-                matches.append(selected)
 
-    return matches
+def load_breed_dataframe():
+    df = pd.read_csv(DATA_PATH)
+    picture_df = pd.read_csv(PICTURE_PATH)
 
-def get_text_matches(row, query):
-    if not query:
-        return []
+    df["breed_key"] = df["breed"].apply(normalize_breed_name)
+    picture_df["breed_key"] = picture_df["breed"].apply(normalize_breed_name)
 
-    text = " ".join([
-        str(row.get("description", "")),
-        str(row.get("temperament", "")),
-    ]).lower()
+    df = df.merge(
+        picture_df[["breed_key", "picture_name"]],
+        on="breed_key",
+        how="left"
+    )
 
-    # only meaningful words (remove tiny/common words)
-    query_words = [
-        w for w in query.lower().split()
-        if len(w) > 3
-    ]
+    df["search_document"] = (
+        df["description"].fillna("") + " " +
+        df["temperament"].fillna("") + " " +
+        df["group"].fillna("") + " " +
+        df["grooming_frequency_category"].fillna("") + " " +
+        df["shedding_category"].fillna("") + " " +
+        df["energy_level_category"].fillna("") + " " +
+        df["trainability_category"].fillna("") + " " +
+        df["demeanor_category"].fillna("")
+    )
 
-    matches = [word for word in query_words if word in text]
+    return df
 
-    return matches
 
 def compute_structured_jaccard(row, trait_input):
     range_score_total = 0
@@ -164,7 +142,6 @@ def compute_structured_jaccard(row, trait_input):
 
             low, high = parsed
             mid = (low + high) / 2
-
             range_width = (high - low) if (high - low) != 0 else 1
 
             distance = abs(row_value - mid)
@@ -209,28 +186,170 @@ def compute_structured_jaccard(row, trait_input):
         return cat_score
 
 
-def compute_text_scores(df, query):
+def build_tfidf_bundle(df, query):
     query = (query or "").strip()
     if query == "":
         return None
 
-    documents = (
-        df["description"].fillna("") + " " +
-        df["temperament"].fillna("") + " " +
-        df["group"].fillna("") + " " +
-        df["grooming_frequency_category"].fillna("") + " " +
-        df["shedding_category"].fillna("") + " " +
-        df["energy_level_category"].fillna("") + " " +
-        df["trainability_category"].fillna("") + " " +
-        df["demeanor_category"].fillna("")
-    )
-
     vectorizer = TfidfVectorizer(stop_words="english")
-    tfidf_matrix = vectorizer.fit_transform(documents)
+    tfidf_matrix = vectorizer.fit_transform(df["search_document"].fillna(""))
     query_vector = vectorizer.transform([query])
 
-    scores = cosine_similarity(query_vector, tfidf_matrix).flatten()
-    return scores
+    baseline_scores = cosine_similarity(query_vector, tfidf_matrix).flatten()
+
+    return {
+        "vectorizer": vectorizer,
+        "tfidf_matrix": tfidf_matrix,
+        "query_vector": query_vector,
+        "baseline_scores": baseline_scores
+    }
+
+
+def build_svd_bundle(tfidf_bundle, n_components=8):
+    if tfidf_bundle is None:
+        return None
+
+    tfidf_matrix = tfidf_bundle["tfidf_matrix"]
+    query_vector = tfidf_bundle["query_vector"]
+    vectorizer = tfidf_bundle["vectorizer"]
+
+    max_components = min(
+        n_components,
+        tfidf_matrix.shape[0] - 1,
+        tfidf_matrix.shape[1] - 1
+    )
+
+    if max_components < 1:
+        return None
+
+    svd = TruncatedSVD(n_components=max_components, random_state=42)
+    doc_latent = svd.fit_transform(tfidf_matrix)
+    query_latent = svd.transform(query_vector)
+
+    svd_cosine_raw = cosine_similarity(query_latent, doc_latent).flatten()
+    svd_scores = (svd_cosine_raw + 1.0) / 2.0
+
+    feature_names = np.array(vectorizer.get_feature_names_out())
+    dimension_summaries = []
+
+    for i, component in enumerate(svd.components_):
+        pos_idx = np.argsort(component)[-5:][::-1]
+        neg_idx = np.argsort(component)[:5]
+
+        positive_terms = feature_names[pos_idx].tolist()
+        negative_terms = feature_names[neg_idx].tolist()
+
+        dimension_summaries.append({
+            "dimension": i + 1,
+            "positive_terms": positive_terms,
+            "negative_terms": negative_terms,
+            "positive_label": ", ".join(positive_terms[:3]),
+            "negative_label": ", ".join(negative_terms[:3])
+        })
+
+    return {
+        "svd": svd,
+        "doc_latent": doc_latent,
+        "query_latent": query_latent[0],
+        "svd_scores": svd_scores,
+        "dimension_summaries": dimension_summaries
+    }
+
+
+def explain_svd_match(query_latent, doc_latent_vec, dimension_summaries):
+    positive_matches = []
+    negative_matches = []
+
+    for i, (qv, dv) in enumerate(zip(query_latent, doc_latent_vec)):
+        contribution = float(qv * dv)
+
+        if contribution <= 0:
+            continue
+
+        if qv > 0 and dv > 0:
+            positive_matches.append({
+                "dimension": i + 1,
+                "sign": "positive",
+                "contribution": round(contribution, 3),
+                "terms": dimension_summaries[i]["positive_terms"][:3]
+            })
+
+        elif qv < 0 and dv < 0:
+            negative_matches.append({
+                "dimension": i + 1,
+                "sign": "negative",
+                "contribution": round(contribution, 3),
+                "terms": dimension_summaries[i]["negative_terms"][:3]
+            })
+
+    positive_matches.sort(key=lambda x: x["contribution"], reverse=True)
+    negative_matches.sort(key=lambda x: x["contribution"], reverse=True)
+
+    return positive_matches[:3], negative_matches[:3]
+
+
+def get_matching_traits(row, trait_input):
+    matching_traits = []
+
+    for trait, col in CATEGORY_COLUMN_MAP.items():
+        selected_values = as_list(trait_input.get(trait, []))
+        if not selected_values:
+            continue
+
+        row_value = "" if pd.isna(row.get(col)) else str(row[col]).lower()
+
+        for selected in selected_values:
+            selected_clean = str(selected).strip()
+            if selected_clean.lower() in row_value:
+                matching_traits.append(selected_clean)
+
+    return list(dict.fromkeys(matching_traits))
+
+
+def get_matching_words(row, write_in):
+    if not write_in or not write_in.strip():
+        return []
+
+    query_words = re.findall(r"[a-zA-Z]+", write_in.lower())
+    query_words = [w for w in query_words if len(w) > 2]
+
+    doc_text = f"{safe(row['description']) or ''} {safe(row['temperament']) or ''}".lower()
+
+    matching_words = [word for word in query_words if word in doc_text]
+    return list(dict.fromkeys(matching_words))[:6]
+
+
+def build_result_payload(row, score, structured_score=None, text_score=None,
+                         matching_traits=None, matching_words=None,
+                         positive_dimensions=None, negative_dimensions=None):
+    return {
+        "breed": safe(row["breed"]),
+        "score": round(float(score), 3),
+        "structured_score": round(float(structured_score), 3) if structured_score is not None else None,
+        "text_score": round(float(text_score), 3) if text_score is not None else None,
+        "description": safe(row["description"]),
+        "temperament": safe(row["temperament"]),
+        "group": safe(row["group"]),
+        "grooming": safe(row["grooming_frequency_category"]),
+        "energy": safe(row["energy_level_category"]),
+        "shedding": safe(row["shedding_category"]),
+        "trainability": safe(row["trainability_category"]),
+        "demeanor": safe(row["demeanor_category"]),
+        "picture_name": safe(row.get("picture_name", None)),
+        "min_height": safe(row["min_height"]),
+        "max_height": safe(row["max_height"]),
+        "avg_height": safe(row["avg_height"]),
+        "min_weight": safe(row["min_weight"]),
+        "max_weight": safe(row["max_weight"]),
+        "avg_weight": safe(row["avg_weight"]),
+        "min_expectancy": safe(row["min_expectancy"]),
+        "max_expectancy": safe(row["max_expectancy"]),
+        "avg_expectancy": safe(row["avg_expectancy"]),
+        "matching_traits": matching_traits or [],
+        "matching_words": matching_words or [],
+        "positive_dimensions": positive_dimensions or [],
+        "negative_dimensions": negative_dimensions or []
+    }
 
 
 def register_routes(app):
@@ -262,116 +381,82 @@ def register_routes(app):
         has_text = write_in != ""
 
         if not has_structured and not has_text:
-            return jsonify([])
-
-        df = pd.read_csv(DATA_PATH)
-        picture_map = load_picture_map()
-
-        text_scores = compute_text_scores(df, write_in)
-
-        results = []
-
-        for idx, row in df.iterrows():
-            filter_score = compute_structured_jaccard(row, trait_input)
-            text_score = float(text_scores[idx]) if text_scores is not None else None
-
-            breed_name = row["breed"]
-            picture_name = picture_map.get(normalize_breed_name(breed_name), "")
-            matching_traits = get_matching_traits(row, trait_input)
-            matching_words = get_text_matches(row, write_in)
-
-            # ---------------- DETECT INPUT MODES ----------------
-            selected_traits = {
-                k: v for k, v in trait_input.items() if len(as_list(v)) > 0
-            }
-
-            has_categories = len(selected_traits) > 0
-            has_text = len(write_in) > 0
-
-
-            # ---------------- TEXT SCORE (BOOLEAN) ----------------
-            text_words = set(write_in.lower().split())
-            text_words = {w for w in text_words if len(w) > 0}
-
-            text_text = (str(row["description"]) + " " + str(row["temperament"])).lower()
-
-            text_match = any(w in text_text for w in text_words)
-
-            text_score = 100.0 if text_match else 0.0
-
-
-            # ---------------- CATEGORY SCORE ----------------
-            total_categories = len(selected_traits)
-            matched_categories = 0
-
-            for trait, values in selected_traits.items():
-                col = CATEGORY_COLUMN_MAP.get(trait)
-                if not col:
-                    continue
-
-                row_value = "" if pd.isna(row.get(col)) else str(row[col]).lower()
-
-                for v in as_list(values):
-                    if str(v).strip().lower() in row_value:
-                        matched_categories += 1
-                        break
-
-            category_score = (
-                100.0
-                if total_categories == 0
-                else (matched_categories / total_categories) * 100
-            )
-
-
-            # ---------------- FINAL SCORE LOGIC ----------------
-
-            # CASE 1: no categories → TEXT ONLY
-            if not has_categories and has_text:
-                final_score = text_score
-
-            # CASE 2: no text → CATEGORY ONLY
-            elif has_categories and not has_text:
-                final_score = category_score
-
-            # CASE 3: both → hybrid
-            elif has_categories and has_text:
-                final_score = 0.6 * text_score + 0.4 * category_score
-
-            # CASE 4: fallback (shouldn't happen)
-            else:
-                final_score = 0
-
-            results.append({
-                "breed": breed_name,
-                "score": round(float(final_score), 1),
-                "matching_traits": matching_traits,
-                "matching_words": matching_words,
-                "text_score": round(float(text_score) * 100, 1) if text_score is not None else None,
-                "filter_score": round(float(filter_score) * 100, 1) if filter_score is not None else None,
-                "description": safe(row["description"]),
-                "min_height": safe(row["min_height"]),
-                "max_height": safe(row["max_height"]),
-                "avg_height": safe(row["avg_height"]),
-                "min_weight": safe(row["min_weight"]),
-                "max_weight": safe(row["max_weight"]),
-                "avg_weight": safe(row["avg_weight"]),
-                "min_expectancy": safe(row["min_expectancy"]),
-                "max_expectancy": safe(row["max_expectancy"]),
-                "avg_expectancy": safe(row["avg_expectancy"]),
-                "temperament": safe(row["temperament"]),
-                "group": safe(row["group"]),
-                "energy": safe(row["energy_level_category"]),
-                "shedding": safe(row["shedding_category"]),
-                "trainability": safe(row["trainability_category"]),
-                "demeanor": safe(row["demeanor_category"]),
-                "picture_name": picture_name
+            return jsonify({
+                "baseline_matches": [],
+                "svd_matches": [],
+                "svd_dimensions": []
             })
 
-        results.sort(key=lambda x: x["score"], reverse=True)
+        df = load_breed_dataframe()
 
-        filtered = [r for r in results if r["score"] > 0]
+        tfidf_bundle = build_tfidf_bundle(df, write_in) if has_text else None
+        svd_bundle = build_svd_bundle(tfidf_bundle, n_components=8) if has_text else None
 
-        return jsonify(filtered[:10])
+        baseline_matches = []
+        svd_matches = []
+
+        for idx, row in df.iterrows():
+            structured_score = compute_structured_jaccard(row, trait_input)
+            baseline_text_score = float(tfidf_bundle["baseline_scores"][idx]) if tfidf_bundle is not None else None
+            svd_text_score = float(svd_bundle["svd_scores"][idx]) if svd_bundle is not None else None
+
+            if has_structured and has_text:
+                baseline_final = 0.6 * baseline_text_score + 0.4 * structured_score
+                svd_final = 0.6 * svd_text_score + 0.4 * structured_score
+            elif has_text:
+                baseline_final = baseline_text_score
+                svd_final = svd_text_score
+            else:
+                baseline_final = structured_score
+                svd_final = structured_score
+
+            matching_traits = get_matching_traits(row, trait_input)
+            matching_words = get_matching_words(row, write_in)
+
+            if svd_bundle is not None:
+                positive_dims, negative_dims = explain_svd_match(
+                    svd_bundle["query_latent"],
+                    svd_bundle["doc_latent"][idx],
+                    svd_bundle["dimension_summaries"]
+                )
+            else:
+                positive_dims, negative_dims = [], []
+
+            baseline_matches.append(
+                build_result_payload(
+                    row=row,
+                    score=baseline_final,
+                    structured_score=structured_score if has_structured else None,
+                    text_score=baseline_text_score if has_text else None,
+                    matching_traits=matching_traits,
+                    matching_words=matching_words
+                )
+            )
+
+            svd_matches.append(
+                build_result_payload(
+                    row=row,
+                    score=svd_final,
+                    structured_score=structured_score if has_structured else None,
+                    text_score=svd_text_score if has_text else None,
+                    matching_traits=matching_traits,
+                    matching_words=matching_words,
+                    positive_dimensions=positive_dims,
+                    negative_dimensions=negative_dims
+                )
+            )
+
+        baseline_matches.sort(key=lambda x: x["score"], reverse=True)
+        svd_matches.sort(key=lambda x: x["score"], reverse=True)
+
+        baseline_matches = [m for m in baseline_matches if m["score"] > 0][:10]
+        svd_matches = [m for m in svd_matches if m["score"] > 0][:10]
+
+        return jsonify({
+            "baseline_matches": baseline_matches,
+            "svd_matches": svd_matches,
+            "svd_dimensions": svd_bundle["dimension_summaries"] if svd_bundle is not None else []
+        })
 
     if USE_LLM:
         from llm_routes import register_chat_route
