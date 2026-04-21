@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import TraitPanel from './components/TraitPanel'
-import TitleImg from './pictures/title.png'
 import PawImg from './pictures/paw.png'
 import MatchImg from './pictures/match_title.png'
 
@@ -63,6 +62,10 @@ function App(): JSX.Element {
   const [error, setError] = useState<string>('')
   const [llmResponse, setLlmResponse] = useState<string>('')
   const [showAiPanel, setShowAiPanel] = useState(false)
+  const [aiMessages, setAiMessages] = useState<{role: 'user' | 'ai', text: string}[]>([])
+  const [aiInput, setAiInput] = useState('')
+  const [isAiLoading, setIsAiLoading] = useState(false)
+  const [aiMode, setAiMode] = useState<'help' | 'explain'>('help')
 
   useEffect(() => {
     fetch('/api/config')
@@ -71,13 +74,43 @@ function App(): JSX.Element {
   }, [])
 
   const cleanLine = (line: string) => {
-  return line
-    .replace(/^#{1,6}\s*/, '')        // remove ### headers
-    .replace(/\*\*(.*?)\*\*/g, '$1')  // remove bold **
-    .replace(/\*(.*?)\*/g, '$1')      // remove italics *
-    .replace(/^\*\s*/, '')            // remove bullet *
-    .trim()
-}
+    return line
+      .replace(/^#{1,6}\s*/, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .trim()
+  }
+
+  const renderAssistantMessage = (text: string) => {
+    const lines = text.split('\n')
+
+    return (
+      <>
+        {lines.map((line, i) => {
+          const trimmed = line.trim()
+
+          // bullet line
+          if (/^\*\s+/.test(trimmed)) {
+            return (
+              <div key={i} className="ai-bullet">
+                <div className="ai-bullet-dot" />
+                <div>{trimmed.replace(/^\*\s+/, '')}</div>
+              </div>
+            )
+          }
+
+          // normal line
+          return (
+            <div key={i}>
+              {trimmed}
+            </div>
+          )
+        })}
+      </>
+    )
+  }
 
 const renderWithBoldPrefix = (text: string) => {
   const match = text.match(/^([^:]+:)(.*)$/)
@@ -205,24 +238,17 @@ const renderBreedBold = (text: string) => {
   const normalize = (w: string) =>
     w.toLowerCase().replace(/[^a-z]/g, '')
 
-  const highlightText = (text: string, words: string[]) => {
-    if (!words || words.length === 0) return text
+  const highlightText = (text: string, terms: string[]) => {
+    if (!terms || terms.length === 0) return text
 
-    const normalizedTargets = words
-      .map(normalize)
-      .filter(Boolean)
+    let result = text
 
-    const parts = text.split(/(\b)/)
-
-    return parts.map((part, i) => {
-      const clean = normalize(part)
-
-      const isMatch = normalizedTargets.some(target =>
-        clean === target || clean.startsWith(target)
-      )
-
-      return isMatch ? <mark key={i}>{part}</mark> : part
+    terms.forEach((term) => {
+      const regex = new RegExp(`\\b${term}\\b`, 'gi')
+      result = result.replace(regex, (match) => `<mark>${match}</mark>`)
     })
+
+    return <span dangerouslySetInnerHTML={{ __html: result }} />
   }
 
   const rangeMatches = (
@@ -344,6 +370,40 @@ const renderBreedBold = (text: string) => {
   const currentMatches = activeMethod === 'svd' ? svdMatches : baselineMatches
   //const showMethodToggle = !isLoading && !error && (svdMatches.length > 0 || baselineMatches.length > 0)
 
+  const sendAiMessage = async () => {
+    if (!aiInput.trim()) return
+
+    const newMessages: { role: 'user' | 'ai'; text: string }[] = [
+      ...aiMessages,
+      { role: 'user', text: aiInput }
+    ]
+    setAiMessages(newMessages)
+    setAiInput('')
+    setIsAiLoading(true)
+
+    try {
+      const res = await fetch('/api/ai-help', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: aiInput }),
+      })
+
+      const data = await res.json()
+
+      setAiMessages([
+        ...newMessages,
+        { role: 'ai', text: data.response || "No response." }
+      ])
+    } catch {
+      setAiMessages([
+        ...newMessages,
+        { role: 'ai', text: "Something went wrong." }
+      ])
+    } finally {
+      setIsAiLoading(false)
+    }
+  }
+
   if (useLlm === null) return <></>
 
   return (
@@ -377,6 +437,28 @@ const renderBreedBold = (text: string) => {
           type="button"
         >
           No SVD
+        </button>
+      </div>
+
+      <div className="method-row ai-row">
+        <button
+          className="method-button ai-help-button"
+          onClick={() => {
+            setAiMode('help')
+            setShowAiPanel(true)
+
+            // inject welcome message ONLY if empty
+            setAiMessages((prev) =>
+              prev.length === 0
+                ? [{
+                    role: 'ai',
+                    text: "Hi! Tell me about your lifestyle (home size, activity level, shedding tolerance, etc.), and I’ll suggest dog traits or breeds that fit you."
+                  }]
+                : prev
+            )
+          }}
+        >
+          Ask AI for Help
         </button>
       </div>
 
@@ -466,7 +548,10 @@ const renderBreedBold = (text: string) => {
 
                   <button
                     className="ai-explain-button"
-                    onClick={() => setShowAiPanel(true)}
+                    onClick={() => {
+                      setAiMode('explain')
+                      setShowAiPanel(true)
+                    }}
                   >
                     Explain with AI
                   </button>
@@ -496,103 +581,111 @@ const renderBreedBold = (text: string) => {
         <div className="ai-drawer" onClick={(e) => e.stopPropagation()}>
           
           <div className="ai-drawer-header">
-            <h3>AI Explanation 🐾</h3>
+            <h3>
+              {aiMode === 'help' ? 'AI Assistant 🐾' : 'AI Explanation 🐾'}
+            </h3>
             <button onClick={() => setShowAiPanel(false)}>✕</button>
           </div>
 
           <div className="ai-drawer-content">
-          {llmResponse ? (
-            <div className="ai-text-block">
-              {(() => {
-                const lines = llmResponse.split('\n')
+            {aiMode === 'help' ? (
+              <div className="ai-chat">
+                <div className="ai-messages">
+                  {aiMessages.map((msg, i) => (
+                    <div key={i} className={`ai-message ${msg.role}`}>
+                      {renderAssistantMessage(cleanLine(msg.text))}
+                    </div>
+                  ))}
 
-                let inWhySection = false
-                let whyBullets: string[] = []
+                  {isAiLoading && <div className="ai-message ai">Thinking...</div>}
+                </div>
 
-                const elements: JSX.Element[] = []
+                <div className="ai-input-row">
+                  <div className="ai-input-wrapper">
+                    <textarea
+                      value={aiInput}
+                      onChange={(e) => {
+                        setAiInput(e.target.value)
+                        e.target.style.height = "auto"
+                        e.target.style.height = e.target.scrollHeight + "px"
+                      }}
+                      placeholder="Describe your lifestyle..."
+                      rows={1}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          sendAiMessage()
+                        }
+                      }}
+                    />
+                    <button onClick={sendAiMessage}>Send</button>
+                  </div>
+                </div>
 
-                lines.forEach((line, i) => {
-                  const cleaned = cleanLine(line)
+              </div>
+            ) : (
 
-                  if (!cleaned) return
+              llmResponse ? (
+                <div className="ai-text-block">
+                  {(() => {
+                    const lines = llmResponse.split('\n')
 
-                  // Detect section headers
-                  if (line.startsWith('###')) {
-                    // Flush previous WHY section if ending
-                    if (inWhySection && whyBullets.length > 0) {
+                    const elements: JSX.Element[] = []
+                    const allBullets: string[] = []
+
+                    lines.forEach((line, i) => {
+                      const trimmed = line.trim()
+                      const isBullet = /^(\*|-|•)\s+/.test(trimmed)
+
+                      if (isBullet) {
+                        allBullets.push(trimmed.replace(/^(\*|-|•)\s+/, ''))
+                        return
+                      }
+
+                      // section headers
+                      if (trimmed.startsWith('###')) {
+                        elements.push(
+                          <div key={i} className="ai-section-title">
+                            {cleanLine(trimmed)}
+                          </div>
+                        )
+                        return
+                      }
+
+                      // normal text
+                      if (trimmed.length > 0) {
+                        elements.push(
+                          <div key={i} className="ai-line">
+                            {renderWithBoldPrefix(cleanLine(trimmed))}
+                          </div>
+                        )
+                      }
+                    })
+
+                    // 🔑 ONE unified bullet block at the end
+                    if (allBullets.length > 0) {
                       elements.push(
-                        <div key={`why-${i}`} className="ai-line">
-                          <ul style={{ margin: 0, paddingLeft: '18px' }}>
-                            {whyBullets.map((b, idx) => (
-                              <li key={idx} style={{ marginBottom: '4px' }}>
-                                {renderBreedBold(b)}
-                              </li>
-                            ))}
-                          </ul>
+                        <div key="all-bullets" className="ai-bullet-group">
+                          {allBullets.map((b, i) => (
+                            <div key={i} className="ai-bullet">
+                              <div className="ai-bullet-dot" />
+                              <div>{renderBreedBold(cleanLine(b))}</div>
+                            </div>
+                          ))}
                         </div>
                       )
-                      whyBullets = []
                     }
 
-                    // Check if this is the WHY section
-                    inWhySection = cleaned.toLowerCase().includes('why these dogs')
+                    return elements
+                  })()}
+                </div>
+              ) : (
+                <p className="ai-empty">No AI explanation yet.</p>
+              )
 
-                    elements.push(
-                      <div key={i} className="ai-section-title">
-                        {cleaned}
-                      </div>
-                    )
-                    return
-                  }
+            )}
 
-                  // If we're inside WHY section → collect bullets
-                  if (inWhySection && line.trim().startsWith('*')) {
-                    whyBullets.push(cleaned)
-                    return
-                  }
-
-                  // If leaving WHY section, flush bullets
-                  if (inWhySection && whyBullets.length > 0) {
-                    elements.push(
-                      <div key={`why-end-${i}`} className="ai-line">
-                        <ul style={{ margin: 0, paddingLeft: '18px' }}>
-                          {whyBullets.map((b, idx) => (
-                            <li key={idx} style={{ marginBottom: '4px' }}>
-                              {renderBreedBold(b)}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )
-                    whyBullets = []
-                    inWhySection = false
-                  }
-
-                  // Normal bullet (outside WHY)
-                  if (line.trim().startsWith('*')) {
-                    elements.push(
-                      <div key={i} className="ai-bullet">
-                        {cleaned}
-                      </div>
-                    )
-                    return
-                  }
-
-                  // Normal text
-                  elements.push(
-                    <div key={i} className="ai-line">
-                      {renderWithBoldPrefix(cleaned)}
-                    </div>
-                  )
-                })
-
-                return elements
-              })()}
-            </div>
-          ) : (
-            <p className="ai-empty">No AI explanation yet. Submit preferences first.</p>
-          )}
-        </div>
+          </div>
 
         </div>
       </div>

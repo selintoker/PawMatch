@@ -28,28 +28,37 @@ def rewrite_query_with_llm(query, trait_input):
     client = LLMClient(api_key=api_key)
 
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "You rewrite user queries for dog search. "
-                "Return ONLY descriptive traits (temperament, energy, size, behavior). "
-                "DO NOT include generic words like 'dog', 'breed', 'pet', or filler words. "
-                "Output a concise comma-separated list."
-            ),
-        },
-        {
-            "role": "user",
-            "content": f"""
+    {
+        "role": "system",
+        "content": (
+            "You refine user search queries for dog breed matching. "
+            "Preserve the original descriptive words from the query. "
+            "Remove meaningless filler words (e.g., 'dog', 'the', 'for', 'a', 'with'). "
+            "Expand the query by adding closely related descriptive traits "
+            "Only add near-synonyms or closely equivalent descriptors. "
+            "Do NOT add traits that are only loosely associated. "
+            "(temperament, energy level, size, behavior) based on the input. "
+            "Do NOT introduce unrelated concepts. "
+            "Output a concise comma-separated list of descriptive terms only."
+        ),
+    },
+    {
+        "role": "user",
+        "content": f"""
 User input:
 {query}
 
 Structured traits:
 {trait_input}
 
-Rewrite into a better search query for retrieving dog breeds.
+Rewrite the query:
+- Keep important descriptive words from the original input
+- Remove generic or filler words
+- Add closely related descriptive traits
+- Return only a clean comma-separated list
 """,
-        },
-    ]
+    },
+]
 
     try:
         response = client.chat(messages)
@@ -96,6 +105,13 @@ CATEGORY_COLUMN_MAP = {
     "Demeanor": "demeanor_category",
 }
 
+def extract_terms(query):
+    if not query:
+        return []
+
+    # split on commas → preserves phrases like "high energy"
+    terms = [t.strip().lower() for t in query.split(",") if t.strip()]
+    return terms
 
 def as_list(value):
     if value is None:
@@ -342,17 +358,21 @@ def get_matching_traits(row, trait_input):
     return list(dict.fromkeys(matching_traits))
 
 
-def get_matching_words(row, write_in):
-    if not write_in or not write_in.strip():
+def get_matching_words(row, rewritten_query):
+    if not rewritten_query:
         return []
 
-    query_words = re.findall(r"[a-zA-Z]+", write_in.lower())
-    query_words = [w for w in query_words if len(w) > 2]
+    terms = extract_terms(rewritten_query)
 
     doc_text = f"{safe(row['description']) or ''} {safe(row['temperament']) or ''}".lower()
 
-    matching_words = [word for word in query_words if word in doc_text]
-    return list(dict.fromkeys(matching_words))[:6]
+    matches = []
+    for term in terms:
+        # exact phrase match only
+        if re.search(rf"\b{re.escape(term)}\b", doc_text):
+            matches.append(term)
+
+    return matches[:6]
 
 
 def build_result_payload(row, score, structured_score=None, text_score=None,
@@ -400,11 +420,56 @@ def register_routes(app):
     @app.route("/api/config")
     def config():
         return jsonify({"use_llm": USE_LLM})
+    
+    @app.route("/api/ai-help", methods=["POST"])
+    def ai_help():
+        data = request.get_json() or {}
+        message = (data.get("message") or "").strip()
 
-    @app.route("/api/episodes")
-    def episodes_search():
-        text = request.args.get("title", "")
-        return jsonify(json_search(text))
+        if not message:
+            return jsonify({"response": "Please describe your lifestyle or preferences."})
+
+        api_key = os.getenv("API_KEY")
+        if not api_key:
+            return jsonify({"error": "API_KEY not set"}), 500
+
+        client = LLMClient(api_key=api_key)
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a helpful assistant that helps users choose dog traits "
+                    "for a filtering system.\n\n"
+
+                    "Your job:\n"
+                    "- Translate lifestyle descriptions into specific selectable traits\n"
+                    "- Suggest traits like:\n"
+                    "  Energy Level (Low, Moderate, High)\n"
+                    "  Shedding (Low, Moderate, High)\n"
+                    "  Trainability\n"
+                    "  Demeanor\n"
+                    "  Grooming\n\n"
+
+                    "Rules:\n"
+                    "- Be conversational and helpful\n"
+                    "- Give clear, actionable suggestions\n"
+                    "- When possible, explicitly mention trait values the user should select\n"
+                    "- Keep response under ~6 sentences\n"
+                ),
+            },
+            {
+                "role": "user",
+                "content": message,
+            },
+        ]
+
+        try:
+            response = client.chat(messages)
+            return jsonify({"response": response.get("content", "")})
+        except Exception as e:
+            logger.error(f"AI HELP error: {e}")
+            return jsonify({"error": "AI help failed"}), 500
 
     @app.route('/api/match', methods=['POST'])
     def match_dogs():
@@ -412,8 +477,11 @@ def register_routes(app):
 
         trait_input = payload.get("traitInput", {})
         write_in = payload.get("writeIn", "").strip()
+        original_query = write_in
+
         if USE_LLM and write_in:
-            write_in = rewrite_query_with_llm(write_in, trait_input)
+            rewritten_query = rewrite_query_with_llm(write_in, trait_input)
+            print("Rewritten query:", rewritten_query)
 
         has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
         has_text = write_in != ""
@@ -427,7 +495,7 @@ def register_routes(app):
 
         df = load_breed_dataframe()
 
-        tfidf_bundle = build_tfidf_bundle(df, write_in) if has_text else None
+        tfidf_bundle = build_tfidf_bundle(df, rewritten_query) if has_text else None
         svd_bundle = build_svd_bundle(tfidf_bundle, n_components=8) if has_text else None
 
         baseline_matches = []
@@ -449,7 +517,7 @@ def register_routes(app):
                 svd_final = structured_score
 
             matching_traits = get_matching_traits(row, trait_input)
-            matching_words = get_matching_words(row, write_in)
+            matching_words = get_matching_words(row, rewritten_query)
 
             if svd_bundle is not None:
                 positive_dims, negative_dims = explain_svd_match(

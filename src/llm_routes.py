@@ -82,34 +82,37 @@ Tasks:
 
 ### Why these dogs match
 Write:
-- A short 1–2 sentence summary
+- A 2–3 sentence summary explaining the overall pattern across these dogs
 - Then a bullet list
 
 IMPORTANT FORMAT RULES:
 - EVERY bullet MUST start with '* '
-- Each bullet MUST be exactly:
-  * Breed Name: short reason tied to temperament/traits
+- Each bullet MUST follow this format:
+  * Breed Name: 1–2 sentence explanation referencing temperament, behavior, or traits
 - Include ALL listed dogs (in order)
-- DO NOT skip bullets
-- DO NOT use • or -
+- Explanations should be specific (not repetitive or generic)
 
 ### Comparison
 Write EXACTLY these three lines:
-Size & Energy: ...
-Social Needs: ...
-Maintenance: ...
+Size & Energy: 1–2 sentences comparing variation across breeds
+Social Needs: 1–2 sentences comparing companionship, independence, or behavior with people
+Maintenance: 1–2 sentences comparing grooming, shedding, or care needs
 
 ### Best Recommendation
 Write EXACTLY:
 Best Recommendation: Breed Name
-Then 2–3 sentences explaining why.
+
+Then write 2–4 sentences explaining:
+- why it best matches the user’s preference
+- how it compares to the other top matches
 
 GLOBAL RULES:
 - Do NOT change formatting
 - Do NOT add extra sections
-- Do NOT rewrite the user query
-- Be concise but clear
-""",
+- Do NOT skip any breeds
+- Be descriptive but concise
+- The best match you recommend must have the highest score. 
+"""
     },
 ]
 
