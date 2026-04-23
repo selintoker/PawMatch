@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import TraitPanel from './components/TraitPanel'
 import PawImg from './pictures/paw.png'
-import MatchImg from './pictures/match_title.png'
 
 type DimensionMatch = {
   dimension: number

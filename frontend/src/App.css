@@ -156,14 +156,23 @@ body {
 }
 .brand-name {
   font-family: 'DM Sans', sans-serif;
-  font-size: 38px;
+  font-size: 46px;
   font-weight: 800;
   color: var(--blue-ink);
   line-height: 1;
   letter-spacing: -0.02em;
+  animation: brandFadeIn 0.8s cubic-bezier(0.22,1,0.36,1) both;
 }
-.brand-name span { color: var(--accent-bright); }
-.brand-tag { font-size: 13px; color: var(--text-mid); margin-top: 4px; }
+@keyframes brandFadeIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+.brand-name span { color: var(--accent-bright); animation: accentPulse 2.2s ease-in-out infinite; animation-delay: 0.3s; }
+@keyframes accentPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+.brand-tag { font-size: 16px; color: var(--text-mid); margin-top: 4px; }
 
 /* ── HEADER CONTROLS ── */
 .header-controls {
@@ -259,7 +268,7 @@ body {
   font-family: 'DM Sans', sans-serif; 
   font-size: 16px;
   font-weight: 700;
-  color: var(--blue-ink);
+  color: var(--text-dark);
   margin-bottom: 10px;
   display: flex;
   align-items: center;
