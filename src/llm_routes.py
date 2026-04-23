@@ -31,9 +31,9 @@ def register_chat_route(app, json_search):
         if not results:
             return jsonify({"response": "No matches found to explain."})
 
-        api_key = os.getenv("API_KEY")
+        api_key = os.getenv("SPARK_API_KEY")
         if not api_key:
-            return jsonify({"error": "API_KEY not set — add it to your .env file"}), 500
+            return jsonify({"error": "SPARK_API_KEY not set — add it to your .env file"}), 500
 
         client = LLMClient(api_key=api_key)
 

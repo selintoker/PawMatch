@@ -46,7 +46,7 @@ def structured_to_text(trait_input):
     return ", ".join(terms)
 
 def rewrite_query_with_llm(query, trait_input):
-    api_key = os.getenv("API_KEY")
+    api_key = os.getenv("SPARK_API_KEY")
     if not api_key:
         return query, trait_input
 
@@ -567,9 +567,9 @@ def register_routes(app):
         if not message:
             return jsonify({"response": "Please describe your lifestyle or preferences."})
 
-        api_key = os.getenv("API_KEY")
+        api_key = os.getenv("SPARK_API_KEY")
         if not api_key:
-            return jsonify({"error": "API_KEY not set"}), 500
+            return jsonify({"error": "SPARK_API_KEY not set"}), 500
 
         client = LLMClient(api_key=api_key)
 
