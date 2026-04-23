@@ -51,6 +51,11 @@ def rewrite_query_with_llm(query, trait_input):
         return query, trait_input
 
     try:
+        response = client.chat(messages)
+        rewritten = (response.get("content") or "").strip()
+        return rewritten if rewritten else query
+    except Exception:
+        return query  # never break matching
         client = LLMClient(api_key=api_key)
 
         response = client.chat([
@@ -170,15 +175,25 @@ def rewrite_query_with_llm(query, trait_input):
                 if v not in updated_trait_input[trait]:
                     updated_trait_input[trait].append(v)
 
-        # final query = keywords + structured text
         structured_terms = structured_to_text(updated_trait_input)
+
         final_terms = set(llm_keywords)
 
+        # fallback only if LLM gives nothing
         if not final_terms:
             final_terms = set(extract_terms(query))
 
+        # ONLY add structured terms if they are NOT numeric ranges or categories
         if structured_terms:
-            final_terms.update(extract_terms(structured_terms))
+            structured_tokens = extract_terms(structured_terms)
+
+            cleaned_tokens = [
+                t for t in structured_tokens
+                if not re.match(r"^\d+(-\d+)?$", t)   # removes 0-10, 0-30, etc
+                and "group" not in t.lower()          # removes "toy group"
+            ]
+
+            final_terms.update(cleaned_tokens)
 
         return ", ".join(final_terms), updated_trait_input
 

@@ -436,9 +436,10 @@ function App(): JSX.Element {
               {hasSubmittedInput && (
                 <div className="submitted-prefs-bar">
                   <div className="submitted-prefs-title">Submitted Preferences</div>
+                  <div className="submitted-prefs-section">
                   {submittedWriteIn.trim() && (
                     <div className="submitted-prefs-row">
-                      <span className="submitted-prefs-key">Inputted Trait(s):</span>
+                      <span className="submitted-prefs-key">Original Inputted Trait(s):</span>
                       <span className="submitted-prefs-val">{submittedWriteIn}</span>
                     </div>
                   )}
@@ -448,20 +449,38 @@ function App(): JSX.Element {
                       <span className="submitted-prefs-val">{vals.join(', ')}</span>
                     </div>
                   ))}
+                  </div>
 
-                  {originalQuery && (
-                    <div className="submitted-prefs-row">
-                      <span className="submitted-prefs-key">Original Query:</span>
-                      <span className="submitted-prefs-val">{originalQuery}</span>
-                    </div>
-                  )}
-
-                  {llmEnabled && rewrittenQuery && (
+                  {llmEnabled && rewrittenQuery && rewrittenQuery !== originalQuery && (
                       <div className="submitted-prefs-row">
                         <span className="submitted-prefs-key">Rewritten Query (LLM):</span>
                         <span className="submitted-prefs-val">{rewrittenQuery}</span>
                       </div>
                     )}
+                  {llmEnabled && Object.keys(enrichedTraits).length > 0 && (
+                    <div className="submitted-prefs-section">
+
+                      {llmEnabled && rewrittenQuery && (
+                        <div className="submitted-prefs-row subtle">
+                          <span className="submitted-prefs-key">Rewritten Text Query:</span>
+                          <span className="submitted-prefs-val">{rewrittenQuery}</span>
+                        </div>
+                      )}
+
+                      <div className="submitted-prefs-subtitle">Rewritten Traits (LLM)</div>
+                      {Object.entries(enrichedTraits).map(([trait, values]) => {
+                        if (!values || values.length === 0) return null
+
+                        return (
+                          <div className="submitted-prefs-row" key={trait}>
+                            <span className="submitted-prefs-key">{trait}:</span>
+                            <span className="submitted-prefs-val">{values.join(', ')}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  
                 </div>
               )}
               <div className="comparison-header">
