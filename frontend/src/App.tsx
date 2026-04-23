@@ -39,11 +39,6 @@ type DogMatch = {
   avg_expectancy: number | null
 }
 
-type MatchResponse = {
-  baseline_matches: DogMatch[]
-  svd_matches: DogMatch[]
-}
-
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
   const [traitInput, setTraitInput] = useState<Record<string, Array<number | string>>>({})
