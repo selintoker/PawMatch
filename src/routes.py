@@ -19,6 +19,30 @@ from infosci_spark_client import LLMClient
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = True
 # ─────────────────────────────────────────────────────────────────────────────
+def structured_to_text(trait_input):
+    terms = []
+
+    for trait, values in trait_input.items():
+        for v in as_list(values):
+            v_str = str(v).strip()
+
+            # make it natural language-ish
+            if trait == "Energy Level":
+                terms.append(f"{v_str.lower()} energy")
+            elif trait == "Shedding":
+                terms.append(f"{v_str.lower()} shedding")
+            elif trait == "Grooming Frequency":
+                terms.append(f"{v_str.lower()} grooming")
+            elif trait == "Trainability":
+                terms.append(f"{v_str.lower()} trainability")
+            elif trait == "Demeanor":
+                terms.append(v_str.lower())
+            elif trait == "Group":
+                terms.append(v_str.lower())
+            else:
+                terms.append(v_str.lower())
+
+    return ", ".join(terms)
 
 def rewrite_query_with_llm(query, trait_input):
     api_key = os.getenv("API_KEY")
@@ -31,17 +55,29 @@ def rewrite_query_with_llm(query, trait_input):
     {
         "role": "system",
         "content": (
-            "You refine user search queries for dog breed matching. "
-            "Preserve the original descriptive words from the query. "
-            "Remove meaningless filler words (e.g., 'dog', 'the', 'for', 'a', 'with'). "
-            "Expand the query by adding closely related descriptive traits "
-            "Only add near-synonyms or closely equivalent descriptors. "
-            "Do NOT add traits that are only loosely associated. "
-            "(temperament, energy level, size, behavior) based on the input. "
-            "Do NOT introduce unrelated concepts. "
-            "Output a concise comma-separated list of descriptive terms only."
+            "You refine user queries for dog breed matching.\n\n"
+
+            "GOALS:\n"
+            "1. Preserve ALL meaningful words from the input\n"
+            "2. Expand BOTH directions:\n"
+            "   - Convert structured traits into natural descriptive text\n"
+            "   - Infer additional relevant traits from descriptive text\n"
+            "3. Only add CLOSELY related traits (no speculation)\n\n"
+
+            "RULES:\n"
+            "- Keep original intent EXACT\n"
+            "- Remove filler words (dog, the, a, etc.)\n"
+            "- Add synonyms and equivalent descriptors\n"
+            "- Keep phrases like 'high energy', 'low shedding'\n"
+            "- Do NOT introduce unrelated traits\n\n"
+
+            "OUTPUT FORMAT:\n"
+            "- Comma-separated list only\n"
+            "- No sentences\n"
+            "- No explanations\n"
         ),
     },
+
     {
         "role": "user",
         "content": f"""
@@ -477,11 +513,30 @@ def register_routes(app):
 
         trait_input = payload.get("traitInput", {})
         write_in = payload.get("writeIn", "").strip()
-        original_query = write_in
+        
+        has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
+        has_text = write_in != ""
 
-        if USE_LLM and write_in:
-            rewritten_query = rewrite_query_with_llm(write_in, trait_input)
-            print("Rewritten query:", rewritten_query)
+        structured_text = structured_to_text(trait_input)
+
+        # combine BOTH sources
+        base_query_parts = []
+
+        if write_in:
+            base_query_parts.append(write_in)
+
+        if structured_text:
+            base_query_parts.append(structured_text)
+
+        base_query = ", ".join(base_query_parts).strip()
+
+        rewritten_query = base_query
+
+        if USE_LLM and base_query:
+            rewritten_query = rewrite_query_with_llm(base_query, trait_input)
+
+        print("Base query:", base_query)
+        print("Rewritten query:", rewritten_query)
 
         has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
         has_text = write_in != ""
@@ -517,7 +572,7 @@ def register_routes(app):
                 svd_final = structured_score
 
             matching_traits = get_matching_traits(row, trait_input)
-            matching_words = get_matching_words(row, rewritten_query)
+            matching_words = get_matching_words(row, rewritten_query or base_query)
 
             if svd_bundle is not None:
                 positive_dims, negative_dims = explain_svd_match(

@@ -492,23 +492,59 @@ function App(): JSX.Element {
                   {(() => {
                     const lines = llmResponse.split('\n')
                     const elements: JSX.Element[] = []
-                    const bullets: string[] = []
+
+                    let currentBullets: string[] = []
+
+                    const flushBullets = (key: string) => {
+                      if (currentBullets.length) {
+                        elements.push(
+                          <div key={key}>
+                            {currentBullets.map((b, i) => (
+                              <div key={i} className="ai-bullet">
+                                <div className="ai-bullet-dot" />
+                                <div>{renderWithBoldPrefix(cleanLine(b))}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                        currentBullets = []
+                      }
+                    }
+
                     lines.forEach((line, i) => {
                       const t = line.trim()
-                      if (/^(\*|-|•)\s+/.test(t)) { bullets.push(t.replace(/^(\*|-|•)\s+/, '')); return }
-                      if (t.startsWith('###')) { elements.push(<div key={i} className="ai-section-title">{cleanLine(t)}</div>); return }
-                      if (t) elements.push(<div key={i} className="ai-line">{renderWithBoldPrefix(cleanLine(t))}</div>)
-                    })
-                    if (bullets.length) elements.push(
-                      <div key="bullets">
-                        {bullets.map((b, i) => (
-                          <div key={i} className="ai-bullet">
-                            <div className="ai-bullet-dot" />
-                            <div>{renderWithBoldPrefix(cleanLine(b))}</div>
+
+                      // bullet line
+                      if (/^(\*|-|•)\s+/.test(t)) {
+                        currentBullets.push(t.replace(/^(\*|-|•)\s+/, ''))
+                        return
+                      }
+
+                      // flush bullets BEFORE handling new section/content
+                      flushBullets(`flush-${i}`)
+
+                      // section header
+                      if (t.startsWith('###')) {
+                        elements.push(
+                          <div key={i} className="ai-section-title">
+                            {cleanLine(t)}
                           </div>
-                        ))}
-                      </div>
-                    )
+                        )
+                        return
+                      }
+
+                      // normal line
+                      if (t) {
+                        elements.push(
+                          <div key={i} className="ai-line">
+                            {renderWithBoldPrefix(cleanLine(t))}
+                          </div>
+                        )
+                      }
+                    })
+
+                    // flush any remaining bullets at end
+                    flushBullets('final')
                     return elements
                   })()}
                 </div>
