@@ -513,6 +513,7 @@ def register_routes(app):
 
         trait_input = payload.get("traitInput", {})
         write_in = payload.get("writeIn", "").strip()
+        use_llm_flag = payload.get("useLlm", False)
         
         has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
         has_text = write_in != ""
@@ -532,7 +533,7 @@ def register_routes(app):
 
         rewritten_query = base_query
 
-        if USE_LLM and base_query:
+        if USE_LLM and use_llm_flag and base_query:
             rewritten_query = rewrite_query_with_llm(base_query, trait_input)
 
         print("Base query:", base_query)
@@ -550,8 +551,8 @@ def register_routes(app):
 
         df = load_breed_dataframe()
 
-        tfidf_bundle = build_tfidf_bundle(df, rewritten_query) if has_text else None
-        svd_bundle = build_svd_bundle(tfidf_bundle, n_components=8) if has_text else None
+        tfidf_bundle = build_tfidf_bundle(df, rewritten_query or base_query) if (rewritten_query or base_query) else None
+        svd_bundle = build_svd_bundle(tfidf_bundle, n_components=8) if tfidf_bundle else None
 
         baseline_matches = []
         svd_matches = []
@@ -616,7 +617,9 @@ def register_routes(app):
         return jsonify({
             "baseline_matches": baseline_matches,
             "svd_matches": svd_matches,
-            "svd_dimensions": svd_bundle["dimension_summaries"] if svd_bundle is not None else []
+            "svd_dimensions": svd_bundle["dimension_summaries"] if svd_bundle is not None else [],
+            "rewritten_query": rewritten_query,
+            "original_query": base_query
         })
 
     if USE_LLM:

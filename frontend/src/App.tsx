@@ -62,6 +62,9 @@ function App(): JSX.Element {
   const [aiInput, setAiInput] = useState('')
   const [isAiLoading, setIsAiLoading] = useState(false)
   const [aiMode, setAiMode] = useState<'help' | 'explain'>('help')
+  const [llmEnabled, setLlmEnabled] = useState<boolean>(true)
+  const [rewrittenQuery, setRewrittenQuery] = useState<string>('')
+  const [originalQuery, setOriginalQuery] = useState<string>('')
 
   useEffect(() => {
     fetch('/api/config')
@@ -122,12 +125,18 @@ function App(): JSX.Element {
       const response = await fetch('/api/match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ traitInput, writeIn }),
+        body: JSON.stringify({ 
+          traitInput, 
+          writeIn,
+          useLlm: llmEnabled   // ✅ NEW
+        }),
       })
       if (!response.ok) throw new Error('Failed to fetch matches')
-      const data: MatchResponse = await response.json()
+      const data = await response.json()
       setBaselineMatches(Array.isArray(data.baseline_matches) ? data.baseline_matches : [])
       setSvdMatches(Array.isArray(data.svd_matches) ? data.svd_matches : [])
+      setRewrittenQuery(data.rewritten_query || '')
+      setOriginalQuery(data.original_query || '')
 
       if (useLlm) {
         const ragResponse = await fetch('/api/chat', {
@@ -322,6 +331,23 @@ function App(): JSX.Element {
               >No SVD</button>
             </div>
 
+            <div className="method-toggle">
+              {/* NEW: LLM toggle */}
+                {useLlm && (
+                  <>
+                    <button
+                      className={`method-button${llmEnabled ? ' active' : ''}`}
+                      onClick={() => setLlmEnabled(true)}
+                    >LLM</button>
+
+                    <button
+                      className={`method-button${!llmEnabled ? ' active' : ''}`}
+                      onClick={() => setLlmEnabled(false)}
+                    >No LLM</button>
+                  </>
+                )}
+            </div>
+
             {useLlm && (
               <button
                 className="ai-help-button"
@@ -426,6 +452,13 @@ function App(): JSX.Element {
                       <span className="submitted-prefs-val">{vals.join(', ')}</span>
                     </div>
                   ))}
+
+                  {llmEnabled && rewrittenQuery && rewrittenQuery !== originalQuery && (
+                      <div className="submitted-prefs-row">
+                        <span className="submitted-prefs-key">Rewritten Query (LLM):</span>
+                        <span className="submitted-prefs-val">{rewrittenQuery}</span>
+                      </div>
+                    )}
                 </div>
               )}
               <div className="comparison-header">
