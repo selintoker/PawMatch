@@ -27,7 +27,7 @@ const groups = [
   {
     label: "Foundation Stock Service",
     value: "Foundation Stock Service",
-    desc: "Developing breeds recorded by the American Kennel Club (AKC) but not yet fully recognized"
+    desc: "Developing breeds recorded by the AKC but not yet fully recognized"
   },
   {
     label: "Herding Group",
@@ -42,7 +42,7 @@ const groups = [
   {
     label: "Miscellaneous Class",
     value: "Miscellaneous Class",
-    desc: "Breeds in the process of gaining full American Kennel Club (AKC) recognition"
+    desc: "Breeds in the process of gaining full AKC recognition"
   },
   {
     label: "Non-Sporting Group",
@@ -111,195 +111,138 @@ const demeanorOptions = [
   "Aloof/Wary"
 ]
 
-function TraitPanel({
-  traitInput,
-  toggleTraitValue,
-  writeIn,
-  setWriteIn,
-  handleSubmitPreferences
-}: any) {
+function TraitPanel({ traitInput, toggleTraitValue, writeIn, setWriteIn, handleSubmitPreferences }: any) {
+  const isGroupActive = (value: string) => (traitInput["Group"] || []).includes(value)
 
   return (
-    <div className="trait-form">
+    <div className="trait-form stagger">
 
-      {/* Row 1: Text input */}
-      <div className="trait-section-card">
-        <p className="trait-section-label">Input Traits</p>
+      {/* Free text */}
+      <div>
+        <div className="section-label">Describe your ideal dog in your own words</div>
         <textarea
           className="write-in-input"
-          placeholder="ex: playful, loyal, quiet"
+          placeholder="e.g. playful, loyal, quiet, good with kids…"
+          rows={3}
           value={writeIn}
-          onChange={(e) => setWriteIn(e.target.value)}
-          rows={2}
+          onChange={e => setWriteIn(e.target.value)}
         />
       </div>
 
-      {/* Row 2: Height + Weight + Life Expectancy */}
-      <div className="trait-form-grid-3">
-        <div className="trait-section-card">
-          <p className="trait-section-label">Height</p>
-          <div className="trait-options">
-            <RangeFilter
-              label=""
-              trait="Height"
-              options={heightRanges}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
-          </div>
+      {/* Size & Lifespan */}
+      <div>
+        <div className="trait-divider">
+          <div className="divider-line" />
+          <span className="divider-badge">Size &amp; Lifespan</span>
+          <div className="divider-line" />
         </div>
-
-        <div className="trait-section-card">
-          <p className="trait-section-label">Weight</p>
-          <div className="trait-options">
-            <RangeFilter
-              label=""
-              trait="Weight"
-              options={weightRanges}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
+        <div className="filter-grid">
+          <div className="trait-section-card">
+            <div className="trait-section-label">Height</div>
+            <div className="trait-options">
+              <RangeFilter label="" trait="Height" options={heightRanges} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
           </div>
-        </div>
-
-        <div className="trait-section-card">
-          <p className="trait-section-label">Life Expectancy</p>
-          <div className="trait-options">
-            <RangeFilter
-              label=""
-              trait="Life Expectancy"
-              options={lifeRanges}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
+          <div className="trait-section-card">
+            <div className="trait-section-label">Weight</div>
+            <div className="trait-options">
+              <RangeFilter label="" trait="Weight" options={weightRanges} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
+          </div>
+          <div className="trait-section-card">
+            <div className="trait-section-label">Life Expectancy</div>
+            <div className="trait-options">
+              <RangeFilter label="" trait="Life Expectancy" options={lifeRanges} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Row 3: Breed Group + Energy Level + Demeanor */}
-      <div className="trait-form-grid-3">
-        <div className="trait-section-card">
-
-  <div className="trait-section-card">
-  <p className="trait-section-label">Breed Group:{" "}
-    <span className="trait-definition">
-      Describes the dog's historical working role
-    </span>
-    </p>
-
-  <div className="trait-options breed-group-options">
-
-    {groups.map((g) => {
-      const isSelected = traitInput["Group"]?.includes(g.value)
-
-      return (
-        <div key={g.value} className="breed-group-row">
-
-          <span
-            className={`trait-pill ${isSelected ? "matched" : ""}`}
-            onClick={() => toggleTraitValue("Group", g.value)}
-          >
-            {g.label}
-          </span>
-
-          <span className="group-desc">
-            {g.desc}
-          </span>
-
+      {/* Personality */}
+      <div>
+        <div className="trait-divider">
+          <div className="divider-line" />
+          <span className="divider-badge">Personality</span>
+          <div className="divider-line" />
         </div>
-      )
-    })}
-
-  </div>
-</div>
-</div>
-
-        <div className="trait-section-card">
-          <p className="trait-section-label">Energy Level:{" "}
-          <span className="trait-definition">
-            Reflects how much daily exercise and stimulation the dog typically needs
-          </span>
-          </p>
-          <div className="trait-options">
-            <CheckboxFilter
-              trait="Energy Level"
-              options={energyOptions}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
+        <div className="filter-grid two-col">
+          <div className="trait-section-card">
+            <div className="trait-section-label">Energy Level</div>
+            <div className="trait-card-desc">How much daily exercise and stimulation the dog typically needs</div>
+            <div className="trait-options">
+              <CheckboxFilter trait="Energy Level" options={energyOptions} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
           </div>
-        </div>
-
-        <div className="trait-section-card">
-          <p className="trait-section-label">Demeanor:{" "}
-          <span className="trait-definition">
-            Describes general personality style 
-          </span>
-          </p>
-          <div className="trait-options">
-            <CheckboxFilter
-              trait="Demeanor"
-              options={demeanorOptions}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
+          <div className="trait-section-card">
+            <div className="trait-section-label">Demeanor</div>
+            <div className="trait-card-desc">General personality style around people</div>
+            <div className="trait-options">
+              <CheckboxFilter trait="Demeanor" options={demeanorOptions} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Row 4: Grooming + Trainability + Shedding */}
-      <div className="trait-form-grid-3">
-        <div className="trait-section-card">
-          <p className="trait-section-label">Grooming:{" "}
-          <span className="trait-definition">
-            Describe how much coat maintenance (brushing, trimming, bathing) is required.
-          </span>
-          </p>
-          <div className="trait-options">
-            <CheckboxFilter
-              trait="Grooming Frequency"
-              options={groomingOptions}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
-          </div>
+      {/* Care & Training */}
+      <div>
+        <div className="trait-divider">
+          <div className="divider-line" />
+          <span className="divider-badge">Care &amp; Training</span>
+          <div className="divider-line" />
         </div>
-
-        <div className="trait-section-card">
-          <p className="trait-section-label">Trainability:{" "}
-          <span className="trait-definition">
-            Reflects how quickly the dog learns commands & responds to training
-          </span>
-          </p>
-          <div className="trait-options">
-            <CheckboxFilter
-              trait="Trainability"
-              options={trainabilityOptions}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
+        <div className="filter-grid">
+          <div className="trait-section-card">
+            <div className="trait-section-label">Grooming</div>
+            <div className="trait-card-desc">How much coat maintenance is required</div>
+            <div className="trait-options">
+              <CheckboxFilter trait="Grooming Frequency" options={groomingOptions} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
           </div>
-        </div>
-
-        <div className="trait-section-card">
-          <p className="trait-section-label">Shedding:{" "}
-          <span className="trait-definition">
-            Indicates how much loose fur the breed typically loses throughout the year
-          </span>
-          </p>
-          <div className="trait-options">
-            <CheckboxFilter
-              trait="Shedding"
-              options={sheddingOptions}
-              traitInput={traitInput}
-              toggleTraitValue={toggleTraitValue}
-            />
+          <div className="trait-section-card">
+            <div className="trait-section-label">Trainability</div>
+            <div className="trait-card-desc">How quickly the dog learns commands and responds to training</div>
+            <div className="trait-options">
+              <CheckboxFilter trait="Trainability" options={trainabilityOptions} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
+          </div>
+          <div className="trait-section-card">
+            <div className="trait-section-label">Shedding</div>
+            <div className="trait-card-desc">How much loose fur the breed typically loses throughout the year</div>
+            <div className="trait-options">
+              <CheckboxFilter trait="Shedding" options={sheddingOptions} traitInput={traitInput} toggleTraitValue={toggleTraitValue} />
+            </div>
           </div>
         </div>
       </div>
 
+      {/* AKC Breed Group */}
+      <div>
+        <div className="trait-divider">
+          <div className="divider-line" />
+          <span className="divider-badge">AKC Breed Group</span>
+          <div className="divider-line" />
+        </div>
+        <div className="trait-section-card">
+          <div className="trait-card-desc akc-desc">The dog's historical working role as classified by the American Kennel Club</div>
+          <div className="breed-pills">
+            {groups.map(({ label, value, desc }) => (
+              <div className="breed-pill-row" key={value}>
+                <span
+                  className={`trait-pill${isGroupActive(value) ? ' active' : ''}`}
+                  onClick={() => toggleTraitValue("Group", value)}
+                >
+                  {label}
+                </span>
+                <span className="group-desc">{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Submit */}
       <button className="submit-button" onClick={handleSubmitPreferences}>
-        Find matches
+        Find My Match
       </button>
 
     </div>
