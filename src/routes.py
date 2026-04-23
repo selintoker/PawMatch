@@ -19,6 +19,7 @@ from infosci_spark_client import LLMClient
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = True
 # ─────────────────────────────────────────────────────────────────────────────
+
 def structured_to_text(trait_input):
     terms = []
 
@@ -47,61 +48,143 @@ def structured_to_text(trait_input):
 def rewrite_query_with_llm(query, trait_input):
     api_key = os.getenv("API_KEY")
     if not api_key:
-        return query  # fallback safely
-
-    client = LLMClient(api_key=api_key)
-
-    messages = [
-    {
-        "role": "system",
-        "content": (
-            "You refine user queries for dog breed matching.\n\n"
-
-            "GOALS:\n"
-            "1. Preserve ALL meaningful words from the input\n"
-            "2. Expand BOTH directions:\n"
-            "   - Convert structured traits into natural descriptive text\n"
-            "   - Infer additional relevant traits from descriptive text\n"
-            "3. Only add CLOSELY related traits (no speculation)\n\n"
-
-            "RULES:\n"
-            "- Keep original intent EXACT\n"
-            "- Remove filler words (dog, the, a, etc.)\n"
-            "- Add synonyms and equivalent descriptors\n"
-            "- Keep phrases like 'high energy', 'low shedding'\n"
-            "- Do NOT introduce unrelated traits\n\n"
-
-            "OUTPUT FORMAT:\n"
-            "- Comma-separated list only\n"
-            "- No sentences\n"
-            "- No explanations\n"
-        ),
-    },
-
-    {
-        "role": "user",
-        "content": f"""
-User input:
-{query}
-
-Structured traits:
-{trait_input}
-
-Rewrite the query:
-- Keep important descriptive words from the original input
-- Remove generic or filler words
-- Add closely related descriptive traits
-- Return only a clean comma-separated list
-""",
-    },
-]
+        return query, trait_input
 
     try:
-        response = client.chat(messages)
-        rewritten = (response.get("content") or "").strip()
-        return rewritten if rewritten else query
-    except Exception:
-        return query  # never break matching
+        client = LLMClient(api_key=api_key)
+
+        response = client.chat([
+            {
+                "role": "system",
+                "content": (
+                    "You are a query rewriting system for a dog breed recommendation engine.\n\n"
+
+                    "Your job has TWO parts:\n"
+                    "1. Convert user text into structured traits\n"
+                    "2. Generate high-quality keyword phrases for search\n\n"
+
+                    "You MUST handle BOTH directions:\n"
+                    "- Text → traits (e.g. 'small' → size info)\n"
+                    "- Traits → keywords (even if user gave NO text)\n\n"
+
+                    "OUTPUT STRICT JSON:\n"
+                    "{\n"
+                    '  "traits": {\n'
+                    '    "Energy Level": ["Calm" | "Moderate" | "High"],\n'
+                    '    "Shedding": ["Low" | "Moderate" | "High"],\n'
+                    '    "Grooming Frequency": ["Low" | "Moderate" | "High"],\n'
+                    '    "Trainability": ["Agreeable" | "Independent"],\n'
+                    '    "Demeanor": ["Friendly" | "Reserved" | "Alert"],\n'
+                    '    "Group": ["Toy Group", "Sporting Group", "Working Group", "Herding Group", "Hound Group", "Terrier Group", "Non-Sporting Group"],\n'
+                    '    "Height": ["low-high range"],\n'
+                    '    "Weight": ["low-high range"]\n'
+                    "  },\n"
+                    '  "keywords": ["phrase1", "phrase2", ...]\n'
+                    "}\n\n"
+
+                    "KEYWORD RULES (STRICT):\n"
+                    "- Use short phrases (1–3 words)\n"
+                    "- NO filler words: dog, dogs, breed, a, the, an, for\n"
+                    "- NO duplicates or repeated concepts\n"
+                    "- Each keyword must add new meaning\n"
+                    "- Max 10 keywords\n\n"
+
+                    "SIZE MAPPING RULES:\n"
+                    "- 'small' → Height: 0-30, Weight: 0-10\n"
+                    "- 'medium' → Height: 30-60, Weight: 10-25\n"
+                    "- 'large' → Height: 60-100, Weight: 25-60\n\n"
+
+                    "SIZE KEYWORDS:\n"
+                    "- small → tiny, petite, compact, toy breed, low weight, short height\n"
+                    "- medium → mid-sized, moderate build, medium height\n"
+                    "- large → large breed, tall, heavy, high weight\n\n"
+
+                    "TRAIT → KEYWORD RULE:\n"
+                    "- If traits exist, ALWAYS generate supporting keywords\n"
+                    "- Example: Low Shedding → 'low shedding', 'minimal shedding'\n"
+                    "- Example: Calm → 'calm', 'low energy', 'relaxed'\n\n"
+
+                    "EXAMPLES:\n\n"
+
+                    "Input: small\n"
+                    "Output:\n"
+                    "{\n"
+                    '  "traits": {\n'
+                    '    "Group": ["Toy Group"],\n'
+                    '    "Height": ["0-30"],\n'
+                    '    "Weight": ["0-10"]\n'
+                    "  },\n"
+                    '  "keywords": ["tiny", "petite", "compact", "toy breed", "low weight", "short height"]\n'
+                    "}\n\n"
+
+                    "Input: (no text, traits = Low Shedding + Calm)\n"
+                    "Output:\n"
+                    "{\n"
+                    '  "traits": {\n'
+                    '    "Energy Level": ["Calm"],\n'
+                    '    "Shedding": ["Low"]\n'
+                    "  },\n"
+                    '  "keywords": ["calm", "low energy", "quiet", "low shedding", "minimal shedding"]\n'
+                    "}\n\n"
+
+                    "CRITICAL:\n"
+                    "- NEVER return empty keywords\n"
+                    "- NEVER include useless words\n"
+                    "- ALWAYS enrich the query\n"
+                    "- Output ONLY JSON\n"
+                )
+            },
+            {"role": "user", "content": json.dumps({
+                "query": query,
+                "traits": trait_input
+            })
+            }
+        ])
+
+        content = response.get("content", "").strip()
+
+        # extract JSON block safely
+        start = content.find("{")
+        end = content.rfind("}")
+        if start == -1 or end == -1:
+            return query, trait_input
+        json_str = content[start:end+1]
+
+        try:
+            parsed = json.loads(json_str)
+        except Exception as e:
+            print("JSON PARSE FAILED:", e)
+            print("BAD JSON:", json_str)
+            return query, trait_input
+
+        llm_traits = parsed.get("traits", {})
+        llm_keywords = parsed.get("keywords", [])
+
+        # merge with existing structured input
+        updated_trait_input = {k: list(v) for k, v in trait_input.items()}
+
+        for trait, values in llm_traits.items():
+            if trait not in updated_trait_input:
+                updated_trait_input[trait] = []
+            for v in values:
+                if v not in updated_trait_input[trait]:
+                    updated_trait_input[trait].append(v)
+
+        # final query = keywords + structured text
+        structured_terms = structured_to_text(updated_trait_input)
+        final_terms = set(llm_keywords)
+
+        if not final_terms:
+            final_terms = set(extract_terms(query))
+
+        if structured_terms:
+            final_terms.update(extract_terms(structured_terms))
+
+        return ", ".join(final_terms), updated_trait_input
+
+    except Exception as e:
+        print("LLM ERROR:", e)
+        return query, trait_input
 
 def json_search(query):
     if not query or not query.strip():
@@ -141,13 +224,31 @@ CATEGORY_COLUMN_MAP = {
     "Demeanor": "demeanor_category",
 }
 
+STOPWORDS = set([
+    "the", "a", "an", "dog", "dogs", "puppy", "puppies",
+    "for", "and", "or", "with", "to", "of", "in", "on",
+    "i", "want", "looking", "like", "need"
+])
+
 def extract_terms(query):
     if not query:
         return []
 
-    # split on commas → preserves phrases like "high energy"
-    terms = [t.strip().lower() for t in query.split(",") if t.strip()]
-    return terms
+    # normalize
+    query = query.lower()
+
+    # split on commas AND spaces
+    tokens = re.split(r"[,\s]+", query)
+
+    cleaned = []
+    for t in tokens:
+        t = t.strip()
+        if not t or t in STOPWORDS:
+            continue
+        cleaned.append(t)
+
+    # prioritize longer phrases later if needed
+    return cleaned
 
 def as_list(value):
     if value is None:
@@ -532,9 +633,9 @@ def register_routes(app):
         base_query = ", ".join(base_query_parts).strip()
 
         rewritten_query = base_query
-
+        enriched_traits = trait_input
         if USE_LLM and use_llm_flag and base_query:
-            rewritten_query = rewrite_query_with_llm(base_query, trait_input)
+            rewritten_query, enriched_traits = rewrite_query_with_llm(base_query, trait_input)
 
         print("Base query:", base_query)
         print("Rewritten query:", rewritten_query)
@@ -558,7 +659,7 @@ def register_routes(app):
         svd_matches = []
 
         for idx, row in df.iterrows():
-            structured_score = compute_structured_jaccard(row, trait_input)
+            structured_score = compute_structured_jaccard(row, enriched_traits)
             baseline_text_score = float(tfidf_bundle["baseline_scores"][idx]) if tfidf_bundle is not None else None
             svd_text_score = float(svd_bundle["svd_scores"][idx]) if svd_bundle is not None else None
 
@@ -572,7 +673,7 @@ def register_routes(app):
                 baseline_final = structured_score
                 svd_final = structured_score
 
-            matching_traits = get_matching_traits(row, trait_input)
+            matching_traits = get_matching_traits(row, enriched_traits)
             matching_words = get_matching_words(row, rewritten_query or base_query)
 
             if svd_bundle is not None:
@@ -619,7 +720,8 @@ def register_routes(app):
             "svd_matches": svd_matches,
             "svd_dimensions": svd_bundle["dimension_summaries"] if svd_bundle is not None else [],
             "rewritten_query": rewritten_query,
-            "original_query": base_query
+            "original_query": base_query,
+            "enriched_traits": enriched_traits   # ✅ ADD THIS
         })
 
     if USE_LLM:

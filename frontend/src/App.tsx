@@ -64,6 +64,7 @@ function App(): JSX.Element {
   const [llmEnabled, setLlmEnabled] = useState<boolean>(true)
   const [rewrittenQuery, setRewrittenQuery] = useState<string>('')
   const [originalQuery, setOriginalQuery] = useState<string>('')
+  const [enrichedTraits, setEnrichedTraits] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
     fetch('/api/config')
@@ -136,6 +137,7 @@ function App(): JSX.Element {
       setSvdMatches(Array.isArray(data.svd_matches) ? data.svd_matches : [])
       setRewrittenQuery(data.rewritten_query || '')
       setOriginalQuery(data.original_query || '')
+      setEnrichedTraits(data.enriched_traits || {})
 
       if (useLlm) {
         const ragResponse = await fetch('/api/chat', {
@@ -166,7 +168,7 @@ function App(): JSX.Element {
     if (input['Life Expectancy']?.length) ranges['Life Expectancy'] = input['Life Expectancy'].map(String)
     return ranges
   }
-  const rangePrefs = selectedRanges(submittedQuery)
+  const rangePrefs = selectedRanges(enrichedTraits)
 
   const highlightText = (text: string, terms: string[]) => {
     if (!terms?.length) return text
@@ -452,7 +454,14 @@ function App(): JSX.Element {
                     </div>
                   ))}
 
-                  {llmEnabled && rewrittenQuery && rewrittenQuery !== originalQuery && (
+                  {originalQuery && (
+                    <div className="submitted-prefs-row">
+                      <span className="submitted-prefs-key">Original Query:</span>
+                      <span className="submitted-prefs-val">{originalQuery}</span>
+                    </div>
+                  )}
+
+                  {llmEnabled && rewrittenQuery && (
                       <div className="submitted-prefs-row">
                         <span className="submitted-prefs-key">Rewritten Query (LLM):</span>
                         <span className="submitted-prefs-val">{rewrittenQuery}</span>
