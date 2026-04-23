@@ -185,7 +185,6 @@ def rewrite_query_with_llm(query, trait_input):
         return ", ".join(final_terms), updated_trait_input
 
     except Exception as e:
-        print("LLM ERROR:", e)
         return query, trait_input
 
 def json_search(query):
@@ -638,9 +637,6 @@ def register_routes(app):
         enriched_traits = trait_input
         if USE_LLM and use_llm_flag and base_query:
             rewritten_query, enriched_traits = rewrite_query_with_llm(base_query, trait_input)
-
-        print("Base query:", base_query)
-        print("Rewritten query:", rewritten_query)
 
         has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
         has_text = write_in != ""
