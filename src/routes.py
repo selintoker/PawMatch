@@ -19,6 +19,7 @@ from infosci_spark_client import LLMClient
 # ── AI toggle ────────────────────────────────────────────────────────────────
 USE_LLM = True
 # ─────────────────────────────────────────────────────────────────────────────
+
 def structured_to_text(trait_input):
     terms = []
 
@@ -47,63 +48,14 @@ def structured_to_text(trait_input):
 def rewrite_query_with_llm(query, trait_input):
     api_key = os.getenv("API_KEY")
     if not api_key:
-        return query  # fallback safely
-
-    client = LLMClient(api_key=api_key)
-
-    messages = [
-    {
-        "role": "system",
-        "content": (
-            "You refine user queries for dog breed matching.\n\n"
-
-            "GOALS:\n"
-            "1. Preserve ALL meaningful words from the input\n"
-            "2. Expand BOTH directions:\n"
-            "   - Convert structured traits into natural descriptive text\n"
-            "   - Infer additional relevant traits from descriptive text\n"
-            "3. Only add CLOSELY related traits (no speculation)\n\n"
-
-            "RULES:\n"
-            "- Keep original intent EXACT\n"
-            "- Remove filler words (dog, the, a, etc.)\n"
-            "- Add synonyms and equivalent descriptors\n"
-            "- Keep phrases like 'high energy', 'low shedding'\n"
-            "- Do NOT introduce unrelated traits\n\n"
-
-            "OUTPUT FORMAT:\n"
-            "- Comma-separated list only\n"
-            "- No sentences\n"
-            "- No explanations\n"
-        ),
-    },
-
-    {
-        "role": "user",
-        "content": f"""
-User input:
-{query}
-
-Structured traits:
-{trait_input}
-
-Rewrite the query:
-- Keep important descriptive words from the original input
-- Remove generic or filler words
-- Add closely related descriptive traits
-- Return only a clean comma-separated list
-""",
-    },
-]
+        return query, trait_input
 
     try:
-<<<<<<< Updated upstream
         response = client.chat(messages)
         rewritten = (response.get("content") or "").strip()
         return rewritten if rewritten else query
     except Exception:
         return query  # never break matching
-=======
         client = LLMClient(api_key=api_key)
 
         response = client.chat([
@@ -248,7 +200,6 @@ Rewrite the query:
     except Exception as e:
         print("LLM ERROR:", e)
         return query, trait_input
->>>>>>> Stashed changes
 
 def json_search(query):
     if not query or not query.strip():
@@ -288,13 +239,31 @@ CATEGORY_COLUMN_MAP = {
     "Demeanor": "demeanor_category",
 }
 
+STOPWORDS = set([
+    "the", "a", "an", "dog", "dogs", "puppy", "puppies",
+    "for", "and", "or", "with", "to", "of", "in", "on",
+    "i", "want", "looking", "like", "need"
+])
+
 def extract_terms(query):
     if not query:
         return []
 
-    # split on commas → preserves phrases like "high energy"
-    terms = [t.strip().lower() for t in query.split(",") if t.strip()]
-    return terms
+    # normalize
+    query = query.lower()
+
+    # split on commas AND spaces
+    tokens = re.split(r"[,\s]+", query)
+
+    cleaned = []
+    for t in tokens:
+        t = t.strip()
+        if not t or t in STOPWORDS:
+            continue
+        cleaned.append(t)
+
+    # prioritize longer phrases later if needed
+    return cleaned
 
 def as_list(value):
     if value is None:
@@ -679,9 +648,9 @@ def register_routes(app):
         base_query = ", ".join(base_query_parts).strip()
 
         rewritten_query = base_query
-
+        enriched_traits = trait_input
         if USE_LLM and use_llm_flag and base_query:
-            rewritten_query = rewrite_query_with_llm(base_query, trait_input)
+            rewritten_query, enriched_traits = rewrite_query_with_llm(base_query, trait_input)
 
         print("Base query:", base_query)
         print("Rewritten query:", rewritten_query)
@@ -705,7 +674,7 @@ def register_routes(app):
         svd_matches = []
 
         for idx, row in df.iterrows():
-            structured_score = compute_structured_jaccard(row, trait_input)
+            structured_score = compute_structured_jaccard(row, enriched_traits)
             baseline_text_score = float(tfidf_bundle["baseline_scores"][idx]) if tfidf_bundle is not None else None
             svd_text_score = float(svd_bundle["svd_scores"][idx]) if svd_bundle is not None else None
 
@@ -719,7 +688,7 @@ def register_routes(app):
                 baseline_final = structured_score
                 svd_final = structured_score
 
-            matching_traits = get_matching_traits(row, trait_input)
+            matching_traits = get_matching_traits(row, enriched_traits)
             matching_words = get_matching_words(row, rewritten_query or base_query)
 
             if svd_bundle is not None:
@@ -766,7 +735,8 @@ def register_routes(app):
             "svd_matches": svd_matches,
             "svd_dimensions": svd_bundle["dimension_summaries"] if svd_bundle is not None else [],
             "rewritten_query": rewritten_query,
-            "original_query": base_query
+            "original_query": base_query,
+            "enriched_traits": enriched_traits   # ✅ ADD THIS
         })
 
     if USE_LLM:

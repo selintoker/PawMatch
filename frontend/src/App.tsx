@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import TraitPanel from './components/TraitPanel'
 import PawImg from './pictures/paw.png'
-import MatchImg from './pictures/match_title.png'
 
 type DimensionMatch = {
   dimension: number
@@ -40,11 +39,6 @@ type DogMatch = {
   avg_expectancy: number | null
 }
 
-type MatchResponse = {
-  baseline_matches: DogMatch[]
-  svd_matches: DogMatch[]
-}
-
 function App(): JSX.Element {
   const [useLlm, setUseLlm] = useState<boolean | null>(null)
   const [traitInput, setTraitInput] = useState<Record<string, Array<number | string>>>({})
@@ -65,6 +59,7 @@ function App(): JSX.Element {
   const [llmEnabled, setLlmEnabled] = useState<boolean>(true)
   const [rewrittenQuery, setRewrittenQuery] = useState<string>('')
   const [originalQuery, setOriginalQuery] = useState<string>('')
+  const [enrichedTraits, setEnrichedTraits] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
     fetch('/api/config')
@@ -137,6 +132,7 @@ function App(): JSX.Element {
       setSvdMatches(Array.isArray(data.svd_matches) ? data.svd_matches : [])
       setRewrittenQuery(data.rewritten_query || '')
       setOriginalQuery(data.original_query || '')
+      setEnrichedTraits(data.enriched_traits || {})
 
       if (useLlm) {
         const ragResponse = await fetch('/api/chat', {
@@ -167,7 +163,7 @@ function App(): JSX.Element {
     if (input['Life Expectancy']?.length) ranges['Life Expectancy'] = input['Life Expectancy'].map(String)
     return ranges
   }
-  const rangePrefs = selectedRanges(submittedQuery)
+  const rangePrefs = selectedRanges(enrichedTraits)
 
   const highlightText = (text: string, terms: string[]) => {
     if (!terms?.length) return text
@@ -455,14 +451,12 @@ function App(): JSX.Element {
                   ))}
                   </div>
 
-<<<<<<< Updated upstream
                   {llmEnabled && rewrittenQuery && rewrittenQuery !== originalQuery && (
                       <div className="submitted-prefs-row">
                         <span className="submitted-prefs-key">Rewritten Query (LLM):</span>
                         <span className="submitted-prefs-val">{rewrittenQuery}</span>
                       </div>
                     )}
-=======
                   {llmEnabled && Object.keys(enrichedTraits).length > 0 && (
                     <div className="submitted-prefs-section">
 
@@ -486,7 +480,7 @@ function App(): JSX.Element {
                       })}
                     </div>
                   )}
->>>>>>> Stashed changes
+                  
                 </div>
               )}
               <div className="comparison-header">
