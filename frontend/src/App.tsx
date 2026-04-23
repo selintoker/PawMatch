@@ -58,7 +58,6 @@ function App(): JSX.Element {
   const [aiMode, setAiMode] = useState<'help' | 'explain'>('help')
   const [llmEnabled, setLlmEnabled] = useState<boolean>(true)
   const [rewrittenQuery, setRewrittenQuery] = useState<string>('')
-  const [originalQuery, setOriginalQuery] = useState<string>('')
   const [enrichedTraits, setEnrichedTraits] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
@@ -131,7 +130,6 @@ function App(): JSX.Element {
       setBaselineMatches(Array.isArray(data.baseline_matches) ? data.baseline_matches : [])
       setSvdMatches(Array.isArray(data.svd_matches) ? data.svd_matches : [])
       setRewrittenQuery(data.rewritten_query || '')
-      setOriginalQuery(data.original_query || '')
       setEnrichedTraits(data.enriched_traits || {})
 
       if (useLlm) {
