@@ -451,12 +451,6 @@ function App(): JSX.Element {
                   ))}
                   </div>
 
-                  {llmEnabled && rewrittenQuery && rewrittenQuery !== originalQuery && (
-                      <div className="submitted-prefs-row">
-                        <span className="submitted-prefs-key">Rewritten Query (LLM):</span>
-                        <span className="submitted-prefs-val">{rewrittenQuery}</span>
-                      </div>
-                    )}
                   {llmEnabled && Object.keys(enrichedTraits).length > 0 && (
                     <div className="submitted-prefs-section">
 
