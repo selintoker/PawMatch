@@ -619,6 +619,7 @@ def register_routes(app):
         
         has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
         has_text = write_in != ""
+        has_only_structured = has_structured and not has_text
 
         structured_text = structured_to_text(trait_input)
 
@@ -635,7 +636,7 @@ def register_routes(app):
 
         rewritten_query = base_query
         enriched_traits = trait_input
-        if USE_LLM and use_llm_flag and base_query:
+        if USE_LLM and use_llm_flag and base_query and not has_only_structured:
             rewritten_query, enriched_traits = rewrite_query_with_llm(base_query, trait_input)
 
         has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
