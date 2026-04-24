@@ -45,7 +45,7 @@ def structured_to_text(trait_input):
 
     return ", ".join(terms)
 
-def rewrite_query_with_llm(query, trait_input):
+def rewrite_query_with_llm(query, trait_input, allow_trait_expansion):
     api_key = os.getenv("SPARK_API_KEY")
     if not api_key:
         return query, trait_input
@@ -156,14 +156,17 @@ def rewrite_query_with_llm(query, trait_input):
         llm_traits = parsed.get("traits", {})
         llm_keywords = parsed.get("keywords", [])
 
-        updated_trait_input = {k: list(v) for k, v in trait_input.items()}
+        if allow_trait_expansion:
+            updated_trait_input = {k: list(v) for k, v in trait_input.items()}
 
-        for trait, values in llm_traits.items():
-            if trait not in updated_trait_input:
-                updated_trait_input[trait] = []
-            for v in values:
-                if v not in updated_trait_input[trait]:
-                    updated_trait_input[trait].append(v)
+            for trait, values in llm_traits.items():
+                if trait not in updated_trait_input:
+                    updated_trait_input[trait] = []
+                for v in values:
+                    if v not in updated_trait_input[trait]:
+                        updated_trait_input[trait].append(v)
+        else:
+            updated_trait_input = trait_input.copy()
 
         structured_terms = structured_to_text(updated_trait_input)
         final_terms = set(llm_keywords)
@@ -581,20 +584,38 @@ def register_routes(app):
                     "for a filtering system.\n\n"
 
                     "Your job:\n"
-                    "- Translate lifestyle descriptions into specific selectable traits\n"
-                    "- Suggest traits like:\n"
-                    "  Energy Level (Low, Moderate, High)\n"
-                    "  Shedding (Low, Moderate, High)\n"
-                    "  Trainability\n"
-                    "  Demeanor\n"
-                    "  Grooming\n\n"
+                    "- Translate a user's lifestyle or preferences into EXACT selectable trait values\n"
+                    "- ONLY use the allowed options below\n"
+                    "- Present your answer as clean bullet points\n\n"
 
-                    "Rules:\n"
-                    "- Be conversational and helpful\n"
-                    "- Give clear, actionable suggestions\n"
-                    "- When possible, explicitly mention trait values the user should select\n"
-                    "- Keep response under ~6 sentences\n"
-                ),
+                    "AVAILABLE TRAITS AND OPTIONS:\n"
+                    "- Energy Level: Couch Potato, Calm, Regular Exercise, Energetic, Needs Lots of Activity\n"
+                    "- Shedding: Infrequent, Occasional, Seasonal, Regularly, Frequent\n"
+                    "- Grooming Frequency: Occasional Bath/Brush, Weekly Brushing, 2-3 Times a Week Brushing, Daily Brushing, Professional Only\n"
+                    "- Trainability: Easy Training, Eager to Please, Agreeable, Independent, May be Stubborn\n"
+                    "- Demeanor: Friendly, Outgoing, Alert/Responsive, Reserved with Strangers, Aloof/Wary\n"
+                    "- Group: Toy Group, Sporting Group, Working Group, Herding Group, Hound Group, Terrier Group, Non-Sporting Group, Miscellaneous Class, Foundation Stock Service\n\n"
+
+                    "RESPONSE FORMAT (STRICT):\n"
+                    "- Start with a friendly explanation of 2-3 sentences. Then, use bullet points for the traits\n"
+                    "- Use bullet points * for the traits and values\n"
+                    "- Each bullet must follow this format:\n"
+                    "  Trait: Value\n"
+                    "- Only include traits that are relevant\n"
+                    "- Do NOT invent new values\n"
+                    "- Do NOT explain too much\n\n"
+
+                    "EXAMPLE OUTPUT:\n"
+                    "- Energy Level: Low\n"
+                    "- Shedding: Low\n"
+                    "- Trainability: Agreeable\n"
+                    "- Demeanor: Friendly\n\n"
+
+                    "GUIDELINES:\n"
+                    "- Infer traits from lifestyle (e.g., apartment → Low energy)\n"
+                    "- Prefer 3–6 traits total\n"
+                    "- Be concise and clear\n"
+                )
             },
             {
                 "role": "user",
@@ -636,8 +657,8 @@ def register_routes(app):
 
         rewritten_query = base_query
         enriched_traits = trait_input
-        if USE_LLM and use_llm_flag and base_query and not has_only_structured:
-            rewritten_query, enriched_traits = rewrite_query_with_llm(base_query, trait_input)
+        if USE_LLM and use_llm_flag and base_query:
+            rewritten_query, enriched_traits = rewrite_query_with_llm(base_query, trait_input, allow_trait_expansion=not has_only_structured)
 
         has_structured = any(len(as_list(v)) > 0 for v in trait_input.values())
         has_text = write_in != ""
