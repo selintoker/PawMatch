@@ -457,7 +457,7 @@ function App(): JSX.Element {
                           <span className="submitted-prefs-val">{rewrittenQuery}</span>
                         </div>
                       )}
-                      {Object.keys(submittedQuery).map((trait) => {
+                      {Object.keys(enrichedTraits).map((trait) => {
                         const values = enrichedTraits[trait]
                         if (!values || values.length === 0) return null
 
