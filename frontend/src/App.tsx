@@ -451,16 +451,14 @@ function App(): JSX.Element {
 
                   {llmEnabled && Object.keys(enrichedTraits).length > 0 && (
                     <div className="submitted-prefs-section">
-
                       {llmEnabled && rewrittenQuery && (
                         <div className="submitted-prefs-row subtle">
-                          <span className="submitted-prefs-key">Rewritten Text Query:</span>
+                          <span className="submitted-prefs-key">Rewritten Query:</span>
                           <span className="submitted-prefs-val">{rewrittenQuery}</span>
                         </div>
                       )}
-
-                      <div className="submitted-prefs-subtitle">Rewritten Traits (LLM)</div>
-                      {Object.entries(enrichedTraits).map(([trait, values]) => {
+                      {Object.keys(submittedQuery).map((trait) => {
+                        const values = enrichedTraits[trait]
                         if (!values || values.length === 0) return null
 
                         return (
@@ -469,7 +467,8 @@ function App(): JSX.Element {
                             <span className="submitted-prefs-val">{values.join(', ')}</span>
                           </div>
                         )
-                      })}
+                      })
+                    }
                     </div>
                   )}
                   

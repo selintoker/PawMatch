@@ -69,12 +69,12 @@ def rewrite_query_with_llm(query, trait_input, allow_trait_expansion):
                 "OUTPUT STRICT JSON:\n"
                 "{\n"
                 '  "traits": {\n'
-                '    "Energy Level": ["Calm" | "Moderate" | "High"],\n'
-                '    "Shedding": ["Low" | "Moderate" | "High"],\n'
-                '    "Grooming Frequency": ["Low" | "Moderate" | "High"],\n'
-                '    "Trainability": ["Agreeable" | "Independent"],\n'
-                '    "Demeanor": ["Friendly" | "Reserved" | "Alert"],\n'
-                '    "Group": ["Toy Group", "Sporting Group", "Working Group", "Herding Group", "Hound Group", "Terrier Group", "Non-Sporting Group"],\n'
+                '    "Energy Level": ["Couch Potato" | "Calm" | "Regular Exercise" | "Energetic" | "Needs Lots of Activity"],\n'
+                '    "Shedding": ["Infrequent" | "Occasional" | "Seasonal" | "Regularly" | "Frequent"],\n'
+                '    "Grooming Frequency": ["Occasional Bath/Brush" | "Weekly Brushing" | "2-3 Times a Week Brushing" | "Daily Brushing" | "Professional Only"],\n'
+                '    "Trainability": ["Easy Training" | "Eager to Please" | "Agreeable" | "Independent" | "May be Stubborn"],\n'
+                '    "Demeanor": ["Friendly" | "Outgoing" | "Alert/Responsive" | "Reserved with Strangers" | "Aloof/Wary"],\n'
+                '    "Group": ["Fondation Stock Service", "Herding Group", "Hound Group", "Miscellaneous Class", "Non-Sporting Group", "Terrier Group", "Toy Group"],\n'
                 '    "Height": ["low-high range"],\n'
                 '    "Weight": ["low-high range"]\n'
                 "  },\n"
@@ -88,10 +88,33 @@ def rewrite_query_with_llm(query, trait_input, allow_trait_expansion):
                 "- Each keyword must add new meaning\n"
                 "- Max 10 keywords\n\n"
 
-                "SIZE MAPPING RULES:\n"
-                "- 'small' → Height: 0-30, Weight: 0-10\n"
-                "- 'medium' → Height: 30-60, Weight: 10-25\n"
-                "- 'large' → Height: 60-100, Weight: 25-60\n\n"
+                "SIZE MAPPING RULES (STRICT):\n"
+                "- Map size words to BOTH height AND weight using these exact ranges:\n\n"
+
+                "HEIGHT RANGES:\n"
+                "- small → 0-30\n"
+                "- medium → 30-55\n"
+                "- large → 55-75\n"
+                "- giant → 75+\n\n"
+
+                "WEIGHT RANGES:\n"
+                "- toy → 0-7\n"
+                "- small → 7-15\n"
+                "- medium → 15-30\n"
+                "- large → 30-50\n"
+                "- giant → 50+\n\n"
+
+                "MAPPING RULES:\n"
+                "- 'tiny', 'toy', 'petite' → Weight: 0-7, Height: 0-30\n"
+                "- 'small' → Height: 0-30, Weight: 7-15\n"
+                "- 'medium' → Height: 30-55, Weight: 15-30\n"
+                "- 'large' → Height: 55-75, Weight: 30-50\n"
+                "- 'giant', 'very large', 'huge' → Height: 75+, Weight: 50+\n\n"
+
+                "NOTES:\n"
+                "- Always output ranges as strings like '0-30' or '75+'\n"
+                "- If ambiguous (e.g. 'small dog'), prefer BOTH height and weight mappings\n"
+                "- Never invent ranges outside these buckets\n\n"
 
                 "SIZE KEYWORDS:\n"
                 "- small → tiny, petite, compact, toy breed, low weight, short height\n"
@@ -168,22 +191,10 @@ def rewrite_query_with_llm(query, trait_input, allow_trait_expansion):
         else:
             updated_trait_input = trait_input.copy()
 
-        structured_terms = structured_to_text(updated_trait_input)
         final_terms = set(llm_keywords)
 
         if not final_terms:
             final_terms = set(extract_terms(query))
-
-        if structured_terms:
-            structured_tokens = extract_terms(structured_terms)
-
-            cleaned_tokens = [
-                t for t in structured_tokens
-                if not re.match(r"^\d+(-\d+)?$", t)
-                and "group" not in t.lower()
-            ]
-
-            final_terms.update(cleaned_tokens)
 
         return ", ".join(final_terms), updated_trait_input
 
